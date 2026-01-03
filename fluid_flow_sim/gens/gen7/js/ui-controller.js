@@ -12,6 +12,8 @@ class UIController {
         this.dragElement = null;
         this.showUI = true;
         this.showGrid = true;
+        this.showProbe = true;
+        this.isZenMode = false;
         
         // Mouse state
         this.mousePos = { x: 0, y: 0 };
@@ -32,9 +34,18 @@ class UIController {
         });
 
         // Header controls
+        document.getElementById('zenMode').addEventListener('click', () => this.toggleZenMode());
+        document.getElementById('toggleProbe').addEventListener('click', () => this.toggleProbe());
         document.getElementById('toggleUI').addEventListener('click', () => this.toggleUI());
         document.getElementById('toggleGrid').addEventListener('click', () => this.toggleGrid());
         document.getElementById('resetView').addEventListener('click', () => this.resetView());
+
+        // ESC key to exit zen mode
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.isZenMode) {
+                this.toggleZenMode();
+            }
+        });
 
         // Preset buttons
         document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -84,6 +95,10 @@ class UIController {
         });
 
         // Particle settings
+        this.initCheckbox('conserve-particles', 'conserveParticles', (val) => {
+            this.app.particles.setSettings({ conserveParticles: val });
+        });
+
         this.initSlider('particle-count', 'particles-val', (val) => {
             this.app.particles.setSettings({ count: parseInt(val) });
         });
@@ -319,8 +334,10 @@ class UIController {
         e.preventDefault();
         const zoomSlider = document.getElementById('zoom-level');
         let zoom = parseFloat(zoomSlider.value);
-        zoom += e.deltaY > 0 ? -0.1 : 0.1;
-        zoom = MathUtils.clamp(zoom, 0.5, 3);
+        // Scale zoom step based on current level for smoother zooming
+        const step = zoom < 1 ? 0.05 : 0.2;
+        zoom += e.deltaY > 0 ? -step : step;
+        zoom = MathUtils.clamp(zoom, 0.1, 10);
         zoomSlider.value = zoom;
         this.setZoom(zoom);
         document.getElementById('zoom-val').textContent = zoom.toFixed(1) + 'x';
@@ -387,11 +404,25 @@ class UIController {
         document.getElementById('potential-panel').classList.toggle('active', mode === 'potential');
         document.getElementById('ns-panel').classList.toggle('active', mode === 'navier-stokes');
         
-        // Reset NS if switching to it
+        // Reset and configure NS if switching to it
         if (mode === 'navier-stokes') {
             this.app.nsSolver.reset();
             this.app.visualization.updateSettings({ showGradient: true });
             document.getElementById('show-gradient').checked = true;
+            
+            // Auto-start the simulation
+            this.app.nsSolver.isRunning = true;
+            document.getElementById('ns-play').classList.add('active');
+            document.getElementById('ns-pause').classList.remove('active');
+            
+            // Set up inlet-outlet boundary by default for visible results
+            const boundarySelect = document.getElementById('ns-boundary-type');
+            if (boundarySelect.value === 'periodic') {
+                boundarySelect.value = 'inlet-outlet';
+                this.app.nsSolver.setParams({ boundaryType: 'inlet-outlet' });
+                this.app.nsSolver.reset();
+                this.app.nsSolver.isRunning = true;
+            }
         }
     }
 
@@ -402,6 +433,29 @@ class UIController {
         this.showUI = !this.showUI;
         document.getElementById('left-panel').classList.toggle('hidden', !this.showUI);
         document.getElementById('right-panel').classList.toggle('hidden', !this.showUI);
+    }
+
+    /**
+     * Toggle probe display
+     */
+    toggleProbe() {
+        this.showProbe = !this.showProbe;
+        document.getElementById('toggleProbe').classList.toggle('active', this.showProbe);
+    }
+
+    /**
+     * Toggle zen mode (fullscreen with no UI)
+     */
+    toggleZenMode() {
+        this.isZenMode = !this.isZenMode;
+        document.body.classList.toggle('zen-mode', this.isZenMode);
+        
+        if (this.isZenMode) {
+            // Force resize after transition
+            setTimeout(() => this.app.resize(), 100);
+        } else {
+            this.app.resize();
+        }
     }
 
     /**
@@ -653,6 +707,12 @@ class UIController {
      */
     updateProbe() {
         const probeDisplay = document.getElementById('probe-display');
+        
+        if (!this.showProbe) {
+            probeDisplay.classList.add('hidden');
+            return;
+        }
+        
         probeDisplay.classList.remove('hidden');
         
         document.getElementById('probe-x').textContent = this.worldPos.x.toFixed(3);

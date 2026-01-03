@@ -13,7 +13,7 @@ class FlowVisualization {
             showStreamlines: true,
             showPotentialLines: false,
             showVectors: false,
-            showParticles: false,
+            showParticles: true,
             showGradient: false,
             numLines: 30,
             lineThickness: 1,
@@ -30,12 +30,22 @@ class FlowVisualization {
             yMax: 5
         };
         
-        // Cached gradient image
-        this.gradientImageData = null;
-        this.gradientNeedsUpdate = true;
+        // Caching for performance
+        this.cache = {
+            streamlines: null,
+            potentialLines: null,
+            lastNumLines: 30,
+            lastDomainStr: '',
+            needsStreamlineUpdate: true,
+            needsPotentialUpdate: true
+        };
         
-        // Animation
-        this.animationFrame = null;
+        // Offscreen canvas for gradient (much faster)
+        this.gradientCanvas = document.createElement('canvas');
+        this.gradientCtx = this.gradientCanvas.getContext('2d');
+        this.gradientResolution = 80; // Low res for speed
+        this.gradientCanvas.width = this.gradientResolution;
+        this.gradientCanvas.height = this.gradientResolution;
     }
 
     /**
@@ -54,7 +64,15 @@ class FlowVisualization {
         this.width = rect.width;
         this.height = rect.height;
         
-        this.gradientNeedsUpdate = true;
+        this.invalidateCache();
+    }
+
+    /**
+     * Invalidate all caches
+     */
+    invalidateCache() {
+        this.cache.needsStreamlineUpdate = true;
+        this.cache.needsPotentialUpdate = true;
     }
 
     /**
@@ -87,54 +105,63 @@ class FlowVisualization {
      * Update settings
      */
     updateSettings(newSettings) {
-        Object.assign(this.settings, newSettings);
-        if (newSettings.palette || newSettings.gradientQuantity) {
-            this.gradientNeedsUpdate = true;
+        if (newSettings.numLines !== undefined && newSettings.numLines !== this.settings.numLines) {
+            this.cache.needsStreamlineUpdate = true;
+            this.cache.needsPotentialUpdate = true;
         }
+        Object.assign(this.settings, newSettings);
     }
 
     /**
      * Set domain
      */
     setDomain(xMin, xMax, yMin, yMax) {
-        this.domain = { xMin, xMax, yMin, yMax };
-        this.gradientNeedsUpdate = true;
+        const domainStr = `${xMin},${xMax},${yMin},${yMax}`;
+        if (this.cache.lastDomainStr !== domainStr) {
+            this.domain = { xMin, xMax, yMin, yMax };
+            this.cache.lastDomainStr = domainStr;
+            this.invalidateCache();
+        }
     }
 
     /**
-     * Render gradient background
+     * Render gradient background (optimized with offscreen canvas)
      */
     renderGradient(fieldData) {
         if (!this.settings.showGradient) return;
         
         const { data, range, nx, ny } = fieldData;
+        const gw = this.gradientResolution;
+        const gh = this.gradientResolution;
         
-        // Create image data
-        const imageData = this.ctx.createImageData(this.width, this.height);
+        // Render to small offscreen canvas
+        const imageData = this.gradientCtx.createImageData(gw, gh);
         const pixels = imageData.data;
         
-        for (let sy = 0; sy < this.height; sy++) {
-            for (let sx = 0; sx < this.width; sx++) {
-                // Map screen to field grid
-                const fx = (sx / this.width) * (nx - 1);
-                const fy = ((this.height - sy - 1) / this.height) * (ny - 1);
+        for (let sy = 0; sy < gh; sy++) {
+            for (let sx = 0; sx < gw; sx++) {
+                // Map to field grid using nearest neighbor (fast)
+                const i = Math.floor((sx / gw) * (nx - 1));
+                const j = Math.floor(((gh - 1 - sy) / gh) * (ny - 1));
+                const value = data[j * nx + i] || 0;
                 
-                // Bilinear interpolation
-                const value = MathUtils.bilinearInterpolate(data, fx, fy, nx, ny);
-                
-                // Normalize and get color
                 const t = MathUtils.normalize(value, range.min, range.max);
                 const color = ColorPalettes.getColor(this.settings.palette, t);
                 
-                const idx = (sy * this.width + sx) * 4;
+                const idx = (sy * gw + sx) * 4;
                 pixels[idx] = Math.round(color.r * 255);
                 pixels[idx + 1] = Math.round(color.g * 255);
                 pixels[idx + 2] = Math.round(color.b * 255);
-                pixels[idx + 3] = 200; // Semi-transparent
+                pixels[idx + 3] = 180;
             }
         }
         
-        this.ctx.putImageData(imageData, 0, 0);
+        this.gradientCtx.putImageData(imageData, 0, 0);
+        
+        // Scale up to main canvas with smoothing
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'medium';
+        this.ctx.drawImage(this.gradientCanvas, 0, 0, this.width, this.height);
     }
 
     /**
@@ -406,7 +433,7 @@ class FlowVisualization {
     }
 
     /**
-     * Render for potential flow mode
+     * Render for potential flow mode (with caching)
      */
     renderPotentialFlow(potentialFlow) {
         this.clear();
@@ -425,16 +452,22 @@ class FlowVisualization {
             this.renderGradient(fieldData);
         }
         
-        // Streamlines
+        // Cached streamlines - only recalculate when needed
         if (this.settings.showStreamlines) {
-            const streamlines = potentialFlow.getStreamlines(this.settings.numLines);
-            this.renderStreamlines(streamlines);
+            if (this.cache.needsStreamlineUpdate || !this.cache.streamlines) {
+                this.cache.streamlines = potentialFlow.getStreamlines(this.settings.numLines);
+                this.cache.needsStreamlineUpdate = false;
+            }
+            this.renderStreamlines(this.cache.streamlines);
         }
         
-        // Potential lines
+        // Cached potential lines
         if (this.settings.showPotentialLines) {
-            const potentialLines = potentialFlow.getPotentialLines(this.settings.numLines);
-            this.renderPotentialLines(potentialLines);
+            if (this.cache.needsPotentialUpdate || !this.cache.potentialLines) {
+                this.cache.potentialLines = potentialFlow.getPotentialLines(this.settings.numLines);
+                this.cache.needsPotentialUpdate = false;
+            }
+            this.renderPotentialLines(this.cache.potentialLines);
         }
         
         // Velocity vectors

@@ -80,6 +80,16 @@ class NavierStokesSolver {
         
         // Initialize with inlet velocity if applicable
         if (this.boundaryType === 'inlet-outlet') {
+            // Initialize entire field with inlet velocity for immediate visualization
+            for (let j = 1; j <= this.M; j++) {
+                for (let i = 1; i <= this.N; i++) {
+                    this.u[this.IX(i, j)] = this.inletVelocity;
+                    // Add some initial dye for visualization
+                    if (i < 5) {
+                        this.d[this.IX(i, j)] = 1.0;
+                    }
+                }
+            }
             this.applyInletOutlet();
         }
     }

@@ -34,8 +34,11 @@ class ParticleSystem {
         this.palette = 'viridis';
         this.maxVelocity = 2;
         
+        // Conservation mode - particles only despawn when leaving view
+        this.conserveParticles = false;
+        
         // State
-        this.enabled = false;
+        this.enabled = true;
     }
 
     /**
@@ -84,24 +87,38 @@ class ParticleSystem {
         if (!this.velocityFunc || !this.enabled) return;
         
         const speedScale = this.speed * dt;
+        const maxVelClamp = 10; // Clamp extreme velocities
         
         for (const p of this.particles) {
             // Get velocity at particle position
             const vel = this.velocityFunc(p.x, p.y);
-            const vmag = Math.sqrt(vel.u * vel.u + vel.v * vel.v);
+            let vmag = Math.sqrt(vel.u * vel.u + vel.v * vel.v);
             
-            // Store trail position
-            if (this.trailLength > 0) {
-                p.trail.push({ x: p.x, y: p.y, vmag });
+            // Clamp extreme velocities (near sinks/sources)
+            if (vmag > maxVelClamp) {
+                const scale = maxVelClamp / vmag;
+                vel.u *= scale;
+                vel.v *= scale;
+                vmag = maxVelClamp;
+            }
+            
+            // Store trail position (with clamped velocity)
+            if (this.trailLength > 0 && vmag < maxVelClamp * 0.9) {
+                p.trail.push({ x: p.x, y: p.y, vmag: Math.min(vmag, this.maxVelocity) });
                 if (p.trail.length > this.trailLength) {
                     p.trail.shift();
                 }
             }
             
             // Advect particle
-            if (vmag > MathUtils.EPSILON) {
+            if (vmag > MathUtils.EPSILON && vmag < maxVelClamp) {
                 p.x += vel.u * speedScale;
                 p.y += vel.v * speedScale;
+            } else if (vmag >= maxVelClamp) {
+                // Near singularity - respawn
+                p.trail = [];
+                this.respawnParticle(p);
+                continue;
             } else {
                 // Random walk in stagnant regions
                 p.x += (Math.random() - 0.5) * 0.01;
@@ -111,11 +128,21 @@ class ParticleSystem {
             // Age particle
             p.age++;
             
-            // Respawn if out of bounds or too old
-            if (p.x < this.domain.xMin || p.x > this.domain.xMax ||
-                p.y < this.domain.yMin || p.y > this.domain.yMax ||
-                p.age > p.maxAge) {
-                this.respawnParticle(p);
+            // Check if out of bounds
+            const outOfBounds = p.x < this.domain.xMin || p.x > this.domain.xMax ||
+                p.y < this.domain.yMin || p.y > this.domain.yMax;
+            
+            // Respawn logic based on conservation mode
+            if (this.conserveParticles) {
+                // Only respawn if out of bounds
+                if (outOfBounds) {
+                    this.respawnParticle(p);
+                }
+            } else {
+                // Original behavior: respawn if out of bounds or too old
+                if (outOfBounds || p.age > p.maxAge) {
+                    this.respawnParticle(p);
+                }
             }
         }
     }
@@ -201,6 +228,7 @@ class ParticleSystem {
         if (settings.trailLength !== undefined) this.trailLength = settings.trailLength;
         if (settings.palette !== undefined) this.palette = settings.palette;
         if (settings.maxVelocity !== undefined) this.maxVelocity = settings.maxVelocity;
+        if (settings.conserveParticles !== undefined) this.conserveParticles = settings.conserveParticles;
     }
 
     /**

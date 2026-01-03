@@ -16,6 +16,8 @@
                 <button class="mode-btn" data-mode="navier-stokes">Navier-Stokes</button>
             </div>
             <div class="header-controls">
+                <button id="zenMode" class="icon-btn" title="Zen Mode (Full Screen)">🧘</button>
+                <button id="toggleProbe" class="icon-btn" title="Toggle Probe">📍</button>
                 <button id="toggleUI" class="icon-btn" title="Toggle UI">⚙️</button>
                 <button id="toggleGrid" class="icon-btn" title="Toggle Grid">⊞</button>
                 <button id="resetView" class="icon-btn" title="Reset View">🔄</button>
@@ -197,7 +199,7 @@
                         <label><input type="checkbox" id="show-streamlines" checked> Streamlines (ψ)</label>
                         <label><input type="checkbox" id="show-potential"> Potential Lines (φ)</label>
                         <label><input type="checkbox" id="show-vectors"> Velocity Vectors</label>
-                        <label><input type="checkbox" id="show-particles"> Particles</label>
+                        <label><input type="checkbox" id="show-particles" checked> Particles</label>
                         <label><input type="checkbox" id="show-gradient"> Color Gradient</label>
                     </div>
                 </div>
@@ -248,6 +250,9 @@
 
                 <div class="section" id="particles-section">
                     <h3>✨ Particle Settings</h3>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="conserve-particles"> Conserve Particles</label>
+                    </div>
                     <div class="param-group">
                         <label>Particle Count</label>
                         <input type="range" id="particle-count" min="100" max="5000" step="100" value="1000">
@@ -269,7 +274,7 @@
                     <h3>🔍 View Controls</h3>
                     <div class="param-group">
                         <label>Zoom</label>
-                        <input type="range" id="zoom-level" min="0.5" max="3" step="0.1" value="1">
+                        <input type="range" id="zoom-level" min="0.1" max="10" step="0.1" value="1">
                         <span class="value-display" id="zoom-val">1x</span>
                     </div>
                     <div class="param-group">
