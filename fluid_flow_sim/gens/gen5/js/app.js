@@ -4,11 +4,11 @@ import { Utils } from './utils.js';
 
 class App {
     constructor() {
-        this.canvas = document.getElementById('sim-canvas');
-        this.resize();
+        this.potentialCanvas = document.getElementById('potential-canvas');
+        this.solverCanvas = document.getElementById('solver-canvas');
         
         this.mode = 'potential'; // 'potential' or 'navier'
-        this.potential = new PotentialFlow(this.canvas);
+        this.potential = new PotentialFlow(this.potentialCanvas);
         this.solver = null; // Lazy init
         
         this.colormap = null;
@@ -16,6 +16,7 @@ class App {
         this.showGrid = false;
         this.darkMode = true;
 
+        this.resize();
         this.initUI();
         this.initEvents();
         
@@ -29,10 +30,16 @@ class App {
     }
 
     resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        if (this.potential) this.potential.resize(this.canvas.width, this.canvas.height);
-        if (this.solver) this.solver.resize(this.canvas.width, this.canvas.height);
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        this.potentialCanvas.width = w;
+        this.potentialCanvas.height = h;
+        this.solverCanvas.width = w;
+        this.solverCanvas.height = h;
+
+        if (this.potential) this.potential.resize(w, h);
+        if (this.solver) this.solver.resize(w, h);
     }
 
     initUI() {
@@ -77,7 +84,10 @@ class App {
             const el = document.getElementById(id);
             if (el) {
                 el.addEventListener('input', (e) => {
-                    if (this.solver) this.solver.config[param] = parseFloat(e.target.value) * scale;
+                    if (this.solver) {
+                        this.solver.config[param] = parseFloat(e.target.value) * scale;
+                        // Force re-render or update if needed immediately
+                    }
                 });
             }
         };
@@ -159,10 +169,17 @@ class App {
     setMode(mode) {
         this.mode = mode;
         if (mode === 'navier') {
+            this.potentialCanvas.classList.add('hidden');
+            this.solverCanvas.classList.remove('hidden');
+            
             if (!this.solver) {
-                this.solver = new FluidSolver(this.canvas);
+                this.solver = new FluidSolver(this.solverCanvas);
                 this.updateColormap(document.getElementById('color-palette').value);
+                this.solver.setZoom(this.zoom);
             }
+        } else {
+            this.potentialCanvas.classList.remove('hidden');
+            this.solverCanvas.classList.add('hidden');
         }
     }
 
@@ -187,7 +204,7 @@ class App {
         });
 
         // Zoom
-        this.canvas.addEventListener('wheel', (e) => {
+        const handleZoom = (e) => {
             e.preventDefault();
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
             this.zoom *= delta;
@@ -195,20 +212,27 @@ class App {
             
             if (this.potential) this.potential.setZoom(this.zoom);
             if (this.solver) this.solver.setZoom(this.zoom);
-        }, { passive: false });
+        };
+        
+        // Attach to container to capture events for both canvases
+        const container = document.getElementById('app-container');
+        container.addEventListener('wheel', handleZoom, { passive: false });
 
         let isDragging = false;
         let lastX = 0;
         let lastY = 0;
 
-        this.canvas.addEventListener('mousedown', (e) => {
+        container.addEventListener('mousedown', (e) => {
+            // Ignore if clicking on UI
+            if (e.target.closest('.panel')) return;
+            
             isDragging = true;
             lastX = e.clientX;
             lastY = e.clientY;
         });
 
-        this.canvas.addEventListener('mouseup', () => isDragging = false);
-        this.canvas.addEventListener('mousemove', (e) => {
+        window.addEventListener('mouseup', () => isDragging = false);
+        container.addEventListener('mousemove', (e) => {
             const x = e.clientX;
             const y = e.clientY;
             
@@ -219,8 +243,8 @@ class App {
                 const dx = x - lastX;
                 const dy = y - lastY;
                 // Normalize coordinates to 0..1
-                const u = x / this.canvas.width;
-                const v = 1.0 - y / this.canvas.height; // WebGL Y is up
+                const u = x / window.innerWidth;
+                const v = 1.0 - y / window.innerHeight; // WebGL Y is up
                 
                 this.solver.addForce(u, v, dx, -dy); // Invert dy for WebGL
             }

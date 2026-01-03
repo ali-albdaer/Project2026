@@ -4,9 +4,16 @@ export class FluidSolver {
     constructor(canvas) {
         this.canvas = canvas;
         this.gl = canvas.getContext('webgl');
+        
+        // Check for float texture support
         this.ext = this.gl.getExtension('OES_texture_float');
-        this.gl.getExtension('OES_texture_float_linear'); // Optional
-
+        if (!this.ext) {
+            console.error("OES_texture_float not supported!");
+            alert("Your browser does not support floating point textures. Simulation may not work.");
+        }
+        
+        this.linearFiltering = this.gl.getExtension('OES_texture_float_linear');
+        
         this.width = canvas.width;
         this.height = canvas.height;
         
@@ -147,7 +154,7 @@ export class FluidSolver {
             uniform sampler2D u_colormap;
             uniform float u_min;
             uniform float u_max;
-            uniform int u_type; // 0: vector, 1: scalar
+            uniform float u_type; // 0.0: vector, 1.0: scalar
             uniform float u_zoom;
             uniform bool u_grid;
             uniform float u_aspect;
@@ -163,7 +170,7 @@ export class FluidSolver {
 
                 vec4 data = texture2D(u_texture, uv);
                 float val = 0.0;
-                if (u_type == 0) {
+                if (u_type < 0.5) {
                     val = length(data.xy);
                 } else {
                     val = data.x;
@@ -237,14 +244,32 @@ export class FluidSolver {
         this.density = this.createDoubleFBO(this.simWidth, this.simHeight);
         this.divergence = this.createFBO(this.simWidth, this.simHeight);
         this.pressure = this.createDoubleFBO(this.simWidth, this.simHeight);
+        
+        // Clear all FBOs to 0
+        this.clearFBO(this.velocity.read.fbo);
+        this.clearFBO(this.velocity.write.fbo);
+        this.clearFBO(this.density.read.fbo);
+        this.clearFBO(this.density.write.fbo);
+        this.clearFBO(this.divergence.fbo);
+        this.clearFBO(this.pressure.read.fbo);
+        this.clearFBO(this.pressure.write.fbo);
+    }
+
+    clearFBO(fbo) {
+        const gl = this.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
     }
 
     createFBO(w, h) {
         const gl = this.gl;
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        
+        const filter = this.linearFiltering ? gl.LINEAR : gl.NEAREST;
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.FLOAT, null);
@@ -252,6 +277,12 @@ export class FluidSolver {
         const fbo = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        
+        // Check FBO status
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            console.error("Framebuffer incomplete: " + status);
+        }
         
         return { texture, fbo, width: w, height: h };
     }
@@ -275,9 +306,17 @@ export class FluidSolver {
         // Set uniforms
         for (const name in uniforms) {
             const loc = gl.getUniformLocation(program, name);
+            if (loc === null) continue; // Skip unused uniforms
+
             const val = uniforms[name];
-            if (typeof val === 'number') gl.uniform1f(loc, val);
-            else if (Array.isArray(val)) {
+            if (typeof val === 'number') {
+                // Heuristic: if it looks like an int (for our specific uniforms), use 1i
+                // But safer to just use floats in shaders.
+                // However, for existing shaders, let's try to be robust.
+                gl.uniform1f(loc, val);
+            } else if (typeof val === 'boolean') {
+                gl.uniform1i(loc, val ? 1 : 0);
+            } else if (Array.isArray(val)) {
                 if (val.length === 2) gl.uniform2f(loc, val[0], val[1]);
                 else if (val.length === 3) gl.uniform3f(loc, val[0], val[1], val[2]);
             } else if (val.texture) {
@@ -368,17 +407,17 @@ export class FluidSolver {
         let tex, type, minVal, maxVal;
         if (quantity === 'pressure') {
             tex = this.pressure.read.texture;
-            type = 1;
+            type = 1.0;
             minVal = -0.5;
             maxVal = 0.5;
         } else if (quantity === 'divergence') {
             tex = this.divergence.texture;
-            type = 1;
+            type = 1.0;
             minVal = -0.1;
             maxVal = 0.1;
         } else {
             tex = this.velocity.read.texture;
-            type = 0;
+            type = 0.0;
             minVal = 0.0;
             maxVal = 1.0;
         }
