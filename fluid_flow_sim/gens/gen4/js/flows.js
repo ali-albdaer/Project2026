@@ -10,18 +10,31 @@ class FlowField {
     }
 
     getVelocity(x, y) {
+        // Ensure we return valid numbers
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return { x: 0, y: 0 };
+        }
         return { x: 0, y: 0 };
     }
 
     getPressure(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
         return 0;
     }
 
     getStreamFunction(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
         return 0;
     }
 
     getVelocityPotential(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
         return 0;
     }
 
@@ -35,31 +48,61 @@ class UniformFlow extends FlowField {
     constructor(U = 1, angle = 0) {
         super();
         this.parameters = { U, angle };
+        console.log('UniformFlow created with U=', U, 'angle=', angle);
     }
 
     getVelocity(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return { x: 0, y: 0 };
+        }
+        
         const { U, angle } = this.parameters;
-        return {
-            x: U * Math.cos(angle),
-            y: U * Math.sin(angle)
+        const u = MathUtils.isValidNumber(U) ? U : 1;
+        const a = MathUtils.isValidNumber(angle) ? angle : 0;
+        
+        const vel = {
+            x: u * Math.cos(a),
+            y: u * Math.sin(a)
         };
+        
+        return vel;
     }
 
     getStreamFunction(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
+        
         const { U, angle } = this.parameters;
-        return U * (y * Math.cos(angle) - x * Math.sin(angle));
+        const u = MathUtils.isValidNumber(U) ? U : 1;
+        const a = MathUtils.isValidNumber(angle) ? angle : 0;
+        
+        return u * (y * Math.cos(a) - x * Math.sin(a));
     }
 
     getVelocityPotential(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
+        
         const { U, angle } = this.parameters;
-        return U * (x * Math.cos(angle) + y * Math.sin(angle));
+        const u = MathUtils.isValidNumber(U) ? U : 1;
+        const a = MathUtils.isValidNumber(angle) ? angle : 0;
+        
+        return u * (x * Math.cos(a) + y * Math.sin(a));
     }
 
     getPressure(x, y) {
+        if (!MathUtils.isValidNumber(x) || !MathUtils.isValidNumber(y)) {
+            return 0;
+        }
+        
         // Bernoulli's equation: P + 0.5*ρ*V² = constant
         const vel = this.getVelocity(x, y);
         const velMag = MathUtils.magnitude(vel);
-        return -0.5 * velMag * velMag; // Assuming ρ = 1, reference pressure = 0
+        const pressure = -0.5 * velMag * velMag; // Assuming ρ = 1, reference pressure = 0
+        
+        return MathUtils.isValidNumber(pressure) ? pressure : 0;
     }
 }
 

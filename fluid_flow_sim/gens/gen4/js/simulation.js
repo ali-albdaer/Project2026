@@ -14,8 +14,8 @@ class FluidSimulation {
         this.timeStep = 0.016; // ~60 FPS
         this.lastFrameTime = 0;
         
-        // Current flow field
-        this.flowField = FlowFactory.createFlow('uniform');
+        // Current flow field - start with uniform flow
+        this.flowField = FlowFactory.createFlow('uniform', { U: 1, angle: 0 });
         this.visualMode = 'velocity';
         
         // Animation frame ID for cleanup
@@ -27,6 +27,16 @@ class FluidSimulation {
         
         this.setupEventListeners();
         this.resize();
+        
+        // Force initial render
+        setTimeout(() => {
+            this.render();
+        }, 100);
+        
+        // Add test render to ensure canvas is working
+        setTimeout(() => {
+            this.testRender();
+        }, 200);
     }
 
     setupEventListeners() {
@@ -49,8 +59,8 @@ class FluidSimulation {
         
         // Set canvas size with device pixel ratio for crisp rendering
         const dpr = window.devicePixelRatio || 1;
-        const width = rect.width;
-        const height = rect.height;
+        const width = Math.max(rect.width, 400); // Minimum width
+        const height = Math.max(rect.height, 300); // Minimum height
         
         this.canvas.width = width * dpr;
         this.canvas.height = height * dpr;
@@ -64,10 +74,8 @@ class FluidSimulation {
         // Update renderer
         this.renderer.resize(width * dpr, height * dpr);
         
-        // Render current frame
-        if (!this.isRunning) {
-            this.render();
-        }
+        // Force render current frame
+        this.render();
     }
 
     setFlowType(type, parameters = {}) {
@@ -232,6 +240,11 @@ class FluidSimulation {
 
     render() {
         try {
+            // Ensure we have a valid flow field
+            if (!this.flowField) {
+                this.flowField = FlowFactory.createFlow('uniform');
+            }
+            
             // Main visualization
             this.renderer.render(this.flowField, this.visualMode);
             
@@ -240,6 +253,11 @@ class FluidSimulation {
             
         } catch (error) {
             console.error('Rendering error:', error);
+            // Try to recover with a simple uniform flow
+            this.flowField = FlowFactory.createFlow('uniform');
+            if (this.renderer) {
+                this.renderer.render(this.flowField, 'velocity');
+            }
         }
     }
 
@@ -377,8 +395,31 @@ class FluidSimulation {
         if (!this.isRunning) {
             this.render();
         }
-    }
-}
+    }    
+    testRender() {
+        console.log('Testing canvas render...');
+        const ctx = this.canvas.getContext('2d');
+        
+        // Clear and fill with gradient
+        ctx.fillStyle = 'red';
+        ctx.fillRect(0, 0, 100, 100);
+        
+        ctx.fillStyle = 'blue';
+        ctx.fillRect(this.canvas.width - 100, 0, 100, 100);
+        
+        ctx.fillStyle = 'green';
+        ctx.fillRect(0, this.canvas.height - 100, 100, 100);
+        
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(this.canvas.width - 100, this.canvas.height - 100, 100, 100);
+        
+        // Text
+        ctx.fillStyle = 'white';
+        ctx.font = '24px Arial';
+        ctx.fillText('TEST RENDER', this.canvas.width/2 - 60, this.canvas.height/2);
+        
+        console.log('Test render complete - canvas size:', this.canvas.width, 'x', this.canvas.height);
+    }}
 
 // Export for global use
 window.FluidSimulation = FluidSimulation;

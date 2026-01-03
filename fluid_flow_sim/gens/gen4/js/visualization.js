@@ -26,7 +26,7 @@ class FlowRenderer {
         this.autoScale = true;
         
         // Performance optimization
-        this.gridResolution = 100;
+        this.gridResolution = 40; // Reduced from 100 for better performance
         this.computeGrid = true;
         this.cachedData = null;
         
@@ -99,7 +99,16 @@ class FlowRenderer {
 
     interpolateColor(colorMap, t) {
         t = Math.max(0, Math.min(1, t));
-        const colors = this.colorMaps[colorMap] || this.colorMaps.viridis;
+        
+        // Ensure colorMaps is initialized
+        if (!this.colorMaps) {
+            this.initializeColorMaps();
+        }
+        
+        const colors = this.colorMaps[colorMap] || this.colorMaps.viridis || [
+            [0.267, 0.004, 0.329], [0.993, 0.906, 0.144] // Fallback viridis
+        ];
+        
         const scaled = t * (colors.length - 1);
         const index = Math.floor(scaled);
         const fraction = scaled - index;
@@ -119,9 +128,15 @@ class FlowRenderer {
     }
 
     getColor(value, colorMap = this.colorMap) {
-        const normalized = this.autoScale ? 
-            (value - this.valueRange.min) / (this.valueRange.max - this.valueRange.min) :
-            value;
+        // Handle invalid values
+        if (!MathUtils.isValidNumber(value)) {
+            value = 0;
+        }
+        
+        const range = this.valueRange.max - this.valueRange.min;
+        const normalized = this.autoScale && range > 0 ? 
+            (value - this.valueRange.min) / range :
+            Math.max(0, Math.min(1, value));
         
         const rgb = this.interpolateColor(colorMap, normalized);
         return `rgb(${Math.round(rgb[0] * 255)}, ${Math.round(rgb[1] * 255)}, ${Math.round(rgb[2] * 255)})`;
@@ -169,6 +184,11 @@ class FlowRenderer {
                         value = MathUtils.magnitude(velocity);
                 }
                 
+                // Handle NaN and invalid values
+                if (!MathUtils.isValidNumber(value)) {
+                    value = 0;
+                }
+                
                 row.push(value);
                 minValue = Math.min(minValue, value);
                 maxValue = Math.max(maxValue, value);
@@ -179,65 +199,106 @@ class FlowRenderer {
         if (this.autoScale) {
             this.valueRange = { min: minValue, max: maxValue };
         }
+        
+        console.log('computeFieldData complete:', {
+            nx, ny, 
+            dataPoints: data.length * (data[0]?.length || 0),
+            minValue, maxValue,
+            sampleValue: data[0] && data[0][0]
+        });
 
         return { data, nx, ny, dx, dy, minValue, maxValue };
     }
 
     renderScalarField(flowField, visualMode) {
-        const fieldData = this.computeFieldData(flowField, visualMode);
-        const { data, nx, ny } = fieldData;
+        console.log('renderScalarField called with mode:', visualMode);
         
-        const imageData = this.ctx.createImageData(this.width, this.height);
-        const pixels = imageData.data;
-
-        for (let screenY = 0; screenY < this.height; screenY++) {
-            for (let screenX = 0; screenX < this.width; screenX++) {
-                const world = this.screenToWorld(screenX, screenY);
-                
-                // Skip points outside domain
-                if (world.x < this.domain.xMin || world.x > this.domain.xMax ||
-                    world.y < this.domain.yMin || world.y > this.domain.yMax) {
-                    continue;
-                }
-
-                // Bilinear interpolation
-                const fx = (world.x - this.domain.xMin) / (this.domain.xMax - this.domain.xMin) * (nx - 1);
-                const fy = (world.y - this.domain.yMin) / (this.domain.yMax - this.domain.yMin) * (ny - 1);
-                
-                const i0 = Math.floor(fx);
-                const j0 = Math.floor(fy);
-                const i1 = Math.min(i0 + 1, nx - 1);
-                const j1 = Math.min(j0 + 1, ny - 1);
-                
-                const wx = fx - i0;
-                const wy = fy - j0;
-                
-                if (i0 >= 0 && j0 >= 0 && i1 < nx && j1 < ny) {
-                    const value = MathUtils.bilinearInterpolation(
-                        fx, fy, i0, i1, j0, j1,
-                        data[j0][i0], data[j0][i1], data[j1][i0], data[j1][i1]
-                    );
+        try {
+            const fieldData = this.computeFieldData(flowField, visualMode);
+            const { data, nx, ny } = fieldData;
+            
+            console.log('Field data computed - nx:', nx, 'ny:', ny, 'range:', this.valueRange);
+            
+            // If range is too small or no valid data, render a test pattern
+            if (!data || data.length === 0 || Math.abs(this.valueRange.max - this.valueRange.min) < 1e-10) {
+                console.log('No valid data, rendering test pattern');
+                this.renderTestPattern(flowField, visualMode);
+                return;
+            }
+            
+            // Try simple cell-based rendering first
+            this.renderCellBasedField(data, nx, ny);
+            
+        } catch (error) {
+            console.error('Error in renderScalarField:', error);
+            this.renderTestPattern(flowField, visualMode);
+        }
+    }
+    
+    renderCellBasedField(data, nx, ny) {
+        const cellWidth = this.width / nx;
+        const cellHeight = this.height / ny;
+        
+        console.log('Rendering', nx, 'x', ny, 'cells with size', cellWidth, 'x', cellHeight);
+        
+        for (let j = 0; j < ny; j++) {
+            for (let i = 0; i < nx; i++) {
+                if (data[j] && typeof data[j][i] === 'number' && MathUtils.isValidNumber(data[j][i])) {
+                    const value = data[j][i];
+                    const range = this.valueRange.max - this.valueRange.min;
+                    const normalizedValue = range > 1e-10 ? (value - this.valueRange.min) / range : 0.5;
                     
-                    const rgb = this.interpolateColor(this.colorMap, 
-                        (value - this.valueRange.min) / (this.valueRange.max - this.valueRange.min));
+                    const rgb = this.interpolateColor(this.colorMap, normalizedValue);
+                    this.ctx.fillStyle = `rgb(${Math.round(rgb[0] * 255)}, ${Math.round(rgb[1] * 255)}, ${Math.round(rgb[2] * 255)})`;
                     
-                    const pixelIndex = (screenY * this.width + screenX) * 4;
-                    pixels[pixelIndex] = Math.round(rgb[0] * 255);     // R
-                    pixels[pixelIndex + 1] = Math.round(rgb[1] * 255); // G
-                    pixels[pixelIndex + 2] = Math.round(rgb[2] * 255); // B
-                    pixels[pixelIndex + 3] = 255;                      // A
+                    this.ctx.fillRect(i * cellWidth, (ny - 1 - j) * cellHeight, cellWidth + 1, cellHeight + 1);
                 }
             }
         }
-
-        this.ctx.putImageData(imageData, 0, 0);
+    }
+    
+    renderTestPattern(flowField, visualMode) {
+        console.log('Rendering test pattern for', visualMode);
+        
+        // Create a test velocity field visualization
+        const steps = 20;
+        const cellWidth = this.width / steps;
+        const cellHeight = this.height / steps;
+        
+        for (let i = 0; i < steps; i++) {
+            for (let j = 0; j < steps; j++) {
+                const x = (i / steps) * (this.domain.xMax - this.domain.xMin) + this.domain.xMin;
+                const y = (j / steps) * (this.domain.yMax - this.domain.yMin) + this.domain.yMin;
+                
+                if (flowField) {
+                    const vel = flowField.getVelocity(x, y);
+                    const magnitude = MathUtils.magnitude(vel);
+                    const normalizedValue = magnitude; // Simple normalization
+                    
+                    const rgb = this.interpolateColor(this.colorMap, Math.min(1, normalizedValue));
+                    this.ctx.fillStyle = `rgb(${Math.round(rgb[0] * 255)}, ${Math.round(rgb[1] * 255)}, ${Math.round(rgb[2] * 255)})`;
+                } else {
+                    // Rainbow test pattern
+                    const hue = (i + j) * 10 % 360;
+                    this.ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+                }
+                
+                this.ctx.fillRect(i * cellWidth, j * cellHeight, cellWidth + 1, cellHeight + 1);
+            }
+        }
+        
+        // Add text overlay
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = '20px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${visualMode} - ${flowField ? 'Uniform Flow' : 'Test Pattern'}`, this.width / 2, this.height / 2);
     }
 
     renderStreamlines(flowField) {
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
         this.ctx.lineWidth = 1;
 
-        const numStreamlines = this.streamlineDensity;
+        const numStreamlines = Math.min(this.streamlineDensity, 8); // Reduce for performance
         const seeds = [];
         
         // Generate seed points
@@ -282,7 +343,7 @@ class FlowRenderer {
     }
 
     renderVelocityVectors(flowField) {
-        const spacing = 20; // pixels between vectors
+        const spacing = 30; // Increased from 20 for better performance
         
         this.ctx.strokeStyle = 'rgba(100, 255, 218, 0.9)';
         this.ctx.lineWidth = 2;
@@ -403,8 +464,30 @@ class FlowRenderer {
     }
 
     render(flowField, visualMode) {
-        // Clear canvas
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        console.log('FlowRenderer.render called with mode:', visualMode, 'canvas size:', this.width, 'x', this.height);
+        
+        // Clear canvas first with a visible color
+        this.ctx.fillStyle = '#2a2a3a'; // Darker blue background
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Add test squares to verify canvas is working
+        this.ctx.fillStyle = '#ff0066';
+        this.ctx.fillRect(20, 20, 50, 50);
+        this.ctx.fillStyle = '#00ff66';
+        this.ctx.fillRect(this.width - 70, 20, 50, 50);
+
+        // Debug: Render a simple test pattern to verify canvas is working
+        if (!flowField) {
+            console.log('No flow field provided!');
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.fillRect(this.width/2 - 50, this.height/2 - 50, 100, 100);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '16px Arial';
+            this.ctx.fillText('No Flow Field', this.width/2 - 50, this.height/2);
+            return;
+        }
+        
+        console.log('Flow field available, rendering visualization...');
 
         // Render based on visualization mode
         switch (visualMode) {
@@ -415,6 +498,7 @@ class FlowRenderer {
                 this.renderVelocityVectors(flowField);
                 break;
             default:
+                console.log('Rendering scalar field for mode:', visualMode);
                 this.renderScalarField(flowField, visualMode);
                 break;
         }
@@ -468,6 +552,23 @@ class FlowRenderer {
     setDomain(xMin, xMax, yMin, yMax) {
         this.domain = { xMin, xMax, yMin, yMax };
         this.setupTransform();
+    }
+
+    renderSimpleGradient() {
+        // Render a simple gradient to test canvas functionality
+        const gradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
+        gradient.addColorStop(0, '#440154');
+        gradient.addColorStop(0.5, '#31688e');
+        gradient.addColorStop(1, '#fde725');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Add text overlay
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '20px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Uniform Flow - Velocity Magnitude: 1.0 m/s', this.width / 2, this.height / 2);
     }
 }
 

@@ -87,7 +87,11 @@ class UIController {
         
         // Set initial time step display
         document.getElementById('timeStepValue').textContent = '0.016';
-    }
+        
+        // Force initial render after a short delay
+        setTimeout(() => {
+            this.simulation.render();
+        }, 500);    }
 
     handleFlowTypeChange(flowType) {
         this.currentFlowType = flowType;

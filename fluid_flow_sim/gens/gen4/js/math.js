@@ -71,37 +71,66 @@ class MathUtils {
 
     // Numerical derivatives
     static centralDifference(field, x, y, dx, component) {
-        const xp = x + dx;
-        const xm = x - dx;
-        const yp = y + dx;
-        const ym = y - dx;
+        try {
+            const xp = x + dx;
+            const xm = x - dx;
+            const yp = y + dx;
+            const ym = y - dx;
 
-        if (component === 'x') {
-            return (field.getVelocity(xp, y).x - field.getVelocity(xm, y).x) / (2 * dx);
-        } else if (component === 'y') {
-            return (field.getVelocity(x, yp).y - field.getVelocity(x, ym).y) / (2 * dx);
-        } else if (component === 'dudx') {
-            return (field.getVelocity(xp, y).x - field.getVelocity(xm, y).x) / (2 * dx);
-        } else if (component === 'dudy') {
-            return (field.getVelocity(x, yp).x - field.getVelocity(x, ym).x) / (2 * dx);
-        } else if (component === 'dvdx') {
-            return (field.getVelocity(xp, y).y - field.getVelocity(xm, y).y) / (2 * dx);
-        } else if (component === 'dvdy') {
-            return (field.getVelocity(x, yp).y - field.getVelocity(x, ym).y) / (2 * dx);
+            let result = 0;
+            if (component === 'x') {
+                const velXp = field.getVelocity(xp, y);
+                const velXm = field.getVelocity(xm, y);
+                result = (velXp.x - velXm.x) / (2 * dx);
+            } else if (component === 'y') {
+                const velYp = field.getVelocity(x, yp);
+                const velYm = field.getVelocity(x, ym);
+                result = (velYp.y - velYm.y) / (2 * dx);
+            } else if (component === 'dudx') {
+                const velXp = field.getVelocity(xp, y);
+                const velXm = field.getVelocity(xm, y);
+                result = (velXp.x - velXm.x) / (2 * dx);
+            } else if (component === 'dudy') {
+                const velYp = field.getVelocity(x, yp);
+                const velYm = field.getVelocity(x, ym);
+                result = (velYp.x - velYm.x) / (2 * dx);
+            } else if (component === 'dvdx') {
+                const velXp = field.getVelocity(xp, y);
+                const velXm = field.getVelocity(xm, y);
+                result = (velXp.y - velXm.y) / (2 * dx);
+            } else if (component === 'dvdy') {
+                const velYp = field.getVelocity(x, yp);
+                const velYm = field.getVelocity(x, ym);
+                result = (velYp.y - velYm.y) / (2 * dx);
+            }
+            
+            return this.isValidNumber(result) ? result : 0;
+        } catch (error) {
+            return 0;
         }
     }
 
     // Calculus operations for fluid mechanics
     static divergence(field, x, y, dx = 0.01) {
-        const dudx = this.centralDifference(field, x, y, dx, 'dudx');
-        const dvdy = this.centralDifference(field, x, y, dx, 'dvdy');
-        return dudx + dvdy;
+        try {
+            const dudx = this.centralDifference(field, x, y, dx, 'dudx');
+            const dvdy = this.centralDifference(field, x, y, dx, 'dvdy');
+            const result = dudx + dvdy;
+            return this.isValidNumber(result) ? result : 0;
+        } catch (error) {
+            return 0;
+        }
     }
 
     static vorticity(field, x, y, dx = 0.01) {
-        const dvdx = this.centralDifference(field, x, y, dx, 'dvdx');
-        const dudy = this.centralDifference(field, x, y, dx, 'dudy');
-        return dvdx - dudy;
+        try {
+            const dvdx = this.centralDifference(field, x, y, dx, 'dvdx');
+            const dudy = this.centralDifference(field, x, y, dx, 'dudy');
+            const result = dvdx - dudy;
+            return this.isValidNumber(result) ? result : 0;
+        } catch (error) {
+            return 0;
+        }
     }
 
     static laplacian(field, x, y, dx = 0.01, component = 'magnitude') {
