@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fluid Flow Lab — Potential Flow + Navier–Stokes</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <div class="brand__title">Fluid Flow Lab</div>
+      <div class="brand__subtitle">Potential-flow superposition + Euler / Navier–Stokes (2D)</div>
+    </div>
+
+    <div class="topbar__right">
+      <div class="seg" role="tablist" aria-label="Mode">
+        <button class="seg__btn seg__btn--active" id="modePotentialBtn" role="tab" aria-selected="true">Potential Flow</button>
+        <button class="seg__btn" id="modeFluidBtn" role="tab" aria-selected="false">Navier–Stokes</button>
+      </div>
+
+      <button class="btn btn--ghost" id="toggleUiBtn" title="Toggle UI (H)">UI</button>
+      <button class="btn btn--ghost" id="toggleGridBtn" title="Toggle grid (G)">Grid</button>
+      <button class="btn btn--ghost" id="resetBtn" title="Reset (R)">Reset</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" id="panel">
+      <div class="panel__section" id="potentialSection">
+        <div class="panel__title">Superposition Builder</div>
+
+        <div class="row">
+          <label class="label">Scenario</label>
+          <select class="select" id="scenarioSelect"></select>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label class="label">Render</label>
+            <div class="row row--tight">
+              <label class="check"><input type="checkbox" id="showStreamlines" checked />Streamlines</label>
+              <label class="check"><input type="checkbox" id="showEquipotentials" />Equipotentials</label>
+            </div>
+          </div>
+          <div>
+            <label class="label">Line density</label>
+            <input class="range" id="lineDensity" type="range" min="10" max="80" value="36" />
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label class="label">Uniform U</label>
+            <input class="input" id="uniformU" type="number" step="0.1" value="1" />
+          </div>
+          <div>
+            <label class="label">Angle (deg)</label>
+            <input class="input" id="uniformAngle" type="number" step="1" value="0" />
+          </div>
+        </div>
+
+        <div class="panel__subtitle">Elementary flows</div>
+        <div class="hint">Add sources/sinks, vortices, and doublets. Drag markers in the viewport.</div>
+
+        <div class="row row--tight">
+          <button class="btn" id="addSourceBtn">+ Source/Sink</button>
+          <button class="btn" id="addVortexBtn">+ Vortex</button>
+          <button class="btn" id="addDoubletBtn">+ Doublet</button>
+        </div>
+
+        <div class="list" id="elementsList"></div>
+      </div>
+
+      <div class="panel__section" id="fluidSection" hidden>
+        <div class="panel__title">Euler / Navier–Stokes Solver</div>
+
+        <div class="grid2">
+          <div>
+            <label class="label">Resolution</label>
+            <select class="select" id="fluidRes">
+              <option value="96">96</option>
+              <option value="128" selected>128</option>
+              <option value="192">192</option>
+              <option value="256">256</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Time step</label>
+            <input class="input" id="dt" type="number" step="0.001" value="0.016" />
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div>
+            <label class="label">Viscosity (ν)</label>
+            <input class="input" id="viscosity" type="number" step="0.0001" value="0.0006" />
+          </div>
+          <div>
+            <label class="label">Vorticity conf.</label>
+            <input class="input" id="vortConf" type="number" step="0.1" value="15" />
+          </div>
+        </div>
+
+        <div class="panel__subtitle">Color field</div>
+        <div class="grid2">
+          <div>
+            <label class="label">Quantity</label>
+            <select class="select" id="displayQuantity">
+              <option value="speed" selected>Velocity magnitude</option>
+              <option value="pressure">Pressure</option>
+              <option value="density">Density</option>
+              <option value="temp">Temperature</option>
+              <option value="vorticity">Vorticity</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Palette</label>
+            <select class="select" id="palette">
+              <option value="viridis" selected>Viridis</option>
+              <option value="plasma">Plasma</option>
+              <option value="magma">Magma</option>
+              <option value="turbo">Turbo</option>
+              <option value="gray">Gray</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel__subtitle">Equation editor (forces + sources)</div>
+        <div class="hint">Expressions use normalized coords x,y in [-1,1], time t (s). Use Math.*. Example: <span class="mono">0.6*Math.sin(2*Math.PI*y)</span></div>
+
+        <label class="label">Body force fx(x,y,t)</label>
+        <textarea class="textarea" id="fxExpr" spellcheck="false">0</textarea>
+
+        <label class="label">Body force fy(x,y,t)</label>
+        <textarea class="textarea" id="fyExpr" spellcheck="false">0</textarea>
+
+        <div class="grid2">
+          <div>
+            <label class="label">Density source sρ(x,y,t)</label>
+            <textarea class="textarea" id="rhoExpr" spellcheck="false">0</textarea>
+          </div>
+          <div>
+            <label class="label">Temp source sT(x,y,t)</label>
+            <textarea class="textarea" id="tempExpr" spellcheck="false">0</textarea>
+          </div>
+        </div>
+
+        <div class="row row--tight">
+          <button class="btn" id="applyEquations">Apply</button>
+          <label class="check"><input type="checkbox" id="mouseForce" checked />Mouse injects momentum</label>
+          <label class="check"><input type="checkbox" id="mouseDensity" checked />Mouse injects density</label>
+        </div>
+      </div>
+
+      <div class="panel__section">
+        <div class="panel__title">Probe</div>
+        <div class="probe" id="probe">Hover the canvas…</div>
+        <div class="hint">Shortcuts: H UI, G grid, R reset, Space pause</div>
+      </div>
+    </aside>
+
+    <section class="viewport" id="viewport">
+      <canvas id="canvas"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="overlay__badge" id="statusBadge">Running</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

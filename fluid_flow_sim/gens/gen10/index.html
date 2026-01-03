@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow Lab</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <div>
+          <div class="title">Flow Lab</div>
+          <div class="subtitle">Superposition + Real-Time Navier–Stokes</div>
+        </div>
+      </div>
+      <div class="mode-switch">
+        <button class="mode-btn active" data-mode="builder">Superposition Builder</button>
+        <button class="mode-btn" data-mode="solver">Navier–Stokes Lab</button>
+      </div>
+      <div class="toggles">
+        <label><input type="checkbox" id="toggleGrid" checked /> Grid</label>
+        <label><input type="checkbox" id="toggleUI" checked /> UI chrome</label>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel" id="builderPanel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Superposition Builder</div>
+            <div class="panel-desc">Compose elementary potential flows; view stream & potential lines.</div>
+          </div>
+          <div class="mini-actions">
+            <select id="scenarioSelect">
+              <option value="custom">Load scenario…</option>
+              <option value="halfBody">Half-body</option>
+              <option value="cylinder">Uniform + Cylinder</option>
+              <option value="rotatingCylinder">Rotating Cylinder (Magnus)</option>
+              <option value="rankineOval">Rankine Oval</option>
+              <option value="shear">Shear layer</option>
+            </select>
+            <button id="resetFlows">Reset</button>
+          </div>
+        </div>
+
+        <div class="content split">
+          <div class="controls">
+            <div class="control-group">
+              <div class="group-title">Add element</div>
+              <div class="add-form">
+                <select id="flowType">
+                  <option value="uniform">Uniform flow</option>
+                  <option value="doublet">Doublet</option>
+                  <option value="vortex">Vortex</option>
+                  <option value="source">Source / Sink</option>
+                </select>
+                <label>Strength <input type="number" id="flowStrength" value="1" step="0.1" /></label>
+                <label>Angle ° <input type="number" id="flowAngle" value="0" step="5" /></label>
+                <label>X <input type="number" id="flowX" value="0" step="5" /></label>
+                <label>Y <input type="number" id="flowY" value="0" step="5" /></label>
+                <button id="addFlow">Add</button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="group-title">Elements</div>
+              <div id="flowList" class="flow-list"></div>
+            </div>
+
+            <div class="control-group">
+              <div class="group-title">Field & overlays</div>
+              <div class="field-grid">
+                <label>Color map
+                  <select id="fieldSelect">
+                    <option value="velocity">Velocity magnitude</option>
+                    <option value="pressure">Pressure (Bernoulli)</option>
+                    <option value="phi">Potential φ</option>
+                    <option value="psi">Streamfunction ψ</option>
+                  </select>
+                </label>
+                <label><input type="checkbox" id="showStream" checked /> Streamlines</label>
+                <label><input type="checkbox" id="showPotential" checked /> Potential lines</label>
+                <label><input type="checkbox" id="showMarkers" checked /> Show element markers</label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="group-title">Probe</div>
+              <div id="probeInfo" class="probe">Move cursor over canvas.</div>
+            </div>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="flowCanvas" width="960" height="540"></canvas>
+            <div class="hud" id="flowHud">Builder mode • click to place / drag markers</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="solverPanel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Navier–Stokes Lab</div>
+            <div class="panel-desc">Stable fluid solver with live equation editing and palette controls.</div>
+          </div>
+          <div class="mini-actions">
+            <button id="kickForce">Impulse</button>
+            <button id="clearFluid">Clear field</button>
+          </div>
+        </div>
+
+        <div class="content split">
+          <div class="controls">
+            <div class="control-group">
+              <div class="group-title">Equation editor</div>
+              <textarea id="equationText" rows="4">du/dt = -(u·∇)u - ∇p + ν∇²u + f_ext + β(T-T₀)g</textarea>
+              <div class="field-grid">
+                <label>Viscosity ν <input type="range" id="viscosity" min="0" max="0.01" step="0.0005" value="0.002" /></label>
+                <label>Time step Δt <input type="range" id="dt" min="0.001" max="0.05" step="0.001" value="0.016" /></label>
+                <label><input type="checkbox" id="enableBuoy" checked /> Buoyancy</label>
+                <label><input type="checkbox" id="enableVorticity" checked /> Vorticity confinement</label>
+                <label><input type="checkbox" id="enableDye" checked /> Show dye</label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="group-title">Color & sampling</div>
+              <div class="field-grid">
+                <label>Palette
+                  <select id="paletteSelect">
+                    <option value="viridis">Viridis</option>
+                    <option value="inferno">Inferno</option>
+                    <option value="magma">Magma</option>
+                  </select>
+                </label>
+                <label>Quantity
+                  <select id="solverField">
+                    <option value="speed">Speed |u|</option>
+                    <option value="pressure">Pressure</option>
+                    <option value="vorticity">Vorticity</option>
+                    <option value="dye">Dye concentration</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="group-title">Probe</div>
+              <div id="solverProbe" class="probe">Hover to read values.</div>
+            </div>
+          </div>
+
+          <div class="canvas-wrap">
+            <canvas id="fluidCanvas" width="768" height="512"></canvas>
+            <div class="hud" id="fluidHud">Solver mode • drag to inject dye + momentum</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

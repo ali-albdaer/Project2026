@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Flow Simulation</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app-container">
+        <canvas id="sim-canvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="sidebar" class="panel">
+                <div class="header">
+                    <h2>Flow Sim</h2>
+                    <button id="toggle-sidebar-btn" class="icon-btn">☰</button>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="potential">Potential Flow</button>
+                    <button class="tab-btn" data-tab="navier">Navier-Stokes</button>
+                </div>
+
+                <div id="tab-content-potential" class="tab-content active">
+                    <div class="section">
+                        <h3>Scenarios</h3>
+                        <select id="potential-scenario">
+                            <option value="empty">Empty</option>
+                            <option value="uniform">Uniform Flow</option>
+                            <option value="source_sink">Source & Sink</option>
+                            <option value="doublet">Doublet</option>
+                            <option value="cylinder">Flow over Cylinder</option>
+                            <option value="rotating_cylinder">Rotating Cylinder (Magnus)</option>
+                            <option value="rankine">Rankine Oval</option>
+                        </select>
+                    </div>
+
+                    <div class="section">
+                        <h3>Elements</h3>
+                        <div id="elements-list">
+                            <!-- Dynamic list of elements -->
+                        </div>
+                        <div class="add-buttons">
+                            <button onclick="app.addElement('uniform')">+ Uniform</button>
+                            <button onclick="app.addElement('source')">+ Source</button>
+                            <button onclick="app.addElement('vortex')">+ Vortex</button>
+                            <button onclick="app.addElement('doublet')">+ Doublet</button>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h3>Visualization</h3>
+                        <label><input type="checkbox" id="show-streamlines" checked> Streamlines</label>
+                        <label><input type="checkbox" id="show-potential"> Potential Lines</label>
+                        <label><input type="checkbox" id="show-velocity"> Velocity Map</label>
+                        <label>Line Density <input type="range" id="line-density" min="10" max="100" value="40"></label>
+                    </div>
+                </div>
+
+                <div id="tab-content-navier" class="tab-content">
+                    <div class="section">
+                        <h3>Simulation Parameters</h3>
+                        <label>Viscosity <input type="range" id="ns-viscosity" min="0" max="0.1" step="0.001" value="0.000"></label>
+                        <label>Dissipation <input type="range" id="ns-dissipation" min="0.9" max="1.0" step="0.001" value="0.995"></label>
+                        <label>Time Step <input type="range" id="ns-dt" min="0.01" max="0.5" step="0.01" value="0.1"></label>
+                        <label>Iterations <input type="range" id="ns-iterations" min="1" max="50" value="20"></label>
+                    </div>
+                    <div class="section">
+                        <h3>Visualization</h3>
+                        <label>Quantity
+                            <select id="ns-quantity">
+                                <option value="velocity">Velocity</option>
+                                <option value="pressure">Pressure</option>
+                                <option value="divergence">Divergence</option>
+                            </select>
+                        </label>
+                        <label>Brush Size <input type="range" id="ns-brush-size" min="10" max="100" value="40"></label>
+                        <label>Force <input type="range" id="ns-force" min="0.1" max="5.0" step="0.1" value="1.0"></label>
+                        <button id="ns-reset">Reset Simulation</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>Global Settings</h3>
+                    <label>Color Palette
+                        <select id="color-palette">
+                            <option value="viridis">Viridis</option>
+                            <option value="magma">Magma</option>
+                            <option value="inferno">Inferno</option>
+                            <option value="plasma">Plasma</option>
+                            <option value="grayscale">Grayscale</option>
+                        </select>
+                    </label>
+                    <label><input type="checkbox" id="show-grid"> Show Grid</label>
+                    <label><input type="checkbox" id="dark-mode" checked> Dark Mode</label>
+                </div>
+            </div>
+
+            <div id="probe-tool" class="panel hidden">
+                <h4>Probe</h4>
+                <div id="probe-values">
+                    <!-- Dynamic values -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shaders for WebGL -->
+    <script id="vert-shader" type="x-shader/x-vertex">
+        attribute vec2 a_position;
+        varying vec2 v_uv;
+        void main() {
+            v_uv = a_position * 0.5 + 0.5;
+            gl_Position = vec4(a_position, 0, 1);
+        }
+    </script>
+
+    <script id="frag-display" type="x-shader/x-fragment">
+        precision highp float;
+        varying vec2 v_uv;
+        uniform sampler2D u_texture;
+        uniform sampler2D u_colormap;
+        uniform float u_min;
+        uniform float u_max;
+        uniform int u_type; // 0: vector, 1: scalar
+        
+        void main() {
+            vec4 data = texture2D(u_texture, v_uv);
+            float val = 0.0;
+            if (u_type == 0) {
+                val = length(data.xy);
+            } else {
+                val = data.x;
+            }
+            
+            // Map val to 0-1
+            float t = clamp((val - u_min) / (u_max - u_min), 0.0, 1.0);
+            vec4 color = texture2D(u_colormap, vec2(t, 0.5));
+            gl_FragColor = vec4(color.rgb, 1.0);
+        }
+    </script>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

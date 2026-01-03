@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Flow Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <h1>Fluid Flow Simulation</h1>
+            <div class="mode-selector">
+                <button id="potentialModeBtn" class="mode-btn active">Potential Flow</button>
+                <button id="navierStokesModeBtn" class="mode-btn">Navier-Stokes</button>
+            </div>
+            <button id="toggleUIBtn" class="toggle-btn">Toggle UI</button>
+        </header>
+
+        <!-- Main Canvas -->
+        <div id="canvasContainer">
+            <canvas id="mainCanvas"></canvas>
+            <div id="probeInfo" class="probe-info hidden"></div>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="controlPanel" class="control-panel">
+            <!-- Potential Flow Controls -->
+            <div id="potentialControls" class="controls-section">
+                <h3>Potential Flow Builder</h3>
+                
+                <div class="control-group">
+                    <h4>Preset Scenarios</h4>
+                    <select id="scenarioSelect">
+                        <option value="custom">Custom</option>
+                        <option value="halfBody">Half Body</option>
+                        <option value="cylinder">Flow Over Cylinder</option>
+                        <option value="rotatingCylinder">Rotating Cylinder (Magnus)</option>
+                        <option value="rankineOval">Rankine Oval</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <h4>Elementary Flows</h4>
+                    <div id="flowList"></div>
+                    <button id="addFlowBtn" class="btn-primary">Add Flow Element</button>
+                </div>
+
+                <div class="control-group">
+                    <h4>Visualization</h4>
+                    <label>
+                        <input type="checkbox" id="showStreamlines" checked> Streamlines (ψ)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showPotentialLines"> Potential Lines (φ)
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showVelocityField"> Velocity Vectors
+                    </label>
+                    <label>
+                        <input type="checkbox" id="showColorMap"> Color Map
+                    </label>
+                </div>
+            </div>
+
+            <!-- Navier-Stokes Controls -->
+            <div id="navierStokesControls" class="controls-section hidden">
+                <h3>Navier-Stokes Solver</h3>
+                
+                <div class="control-group">
+                    <h4>Simulation Parameters</h4>
+                    <label>
+                        Viscosity (ν): <input type="number" id="viscosity" value="0.001" step="0.0001" min="0">
+                    </label>
+                    <label>
+                        Density (ρ): <input type="number" id="density" value="1.0" step="0.1" min="0.1">
+                    </label>
+                    <label>
+                        Time Step (dt): <input type="number" id="timeStep" value="0.1" step="0.01" min="0.01">
+                    </label>
+                    <label>
+                        Iterations: <input type="number" id="iterations" value="20" step="1" min="1">
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <h4>Boundary Conditions</h4>
+                    <label>
+                        Inlet Velocity: <input type="number" id="inletVelocity" value="5.0" step="0.5">
+                    </label>
+                    <label>
+                        <input type="checkbox" id="enableObstacle" checked> Add Obstacle
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <button id="resetSimBtn" class="btn-primary">Reset Simulation</button>
+                    <button id="pauseSimBtn" class="btn-secondary">Pause</button>
+                </div>
+            </div>
+
+            <!-- Visualization Options (Common) -->
+            <div class="control-group">
+                <h4>Color Map Options</h4>
+                <label>
+                    Quantity:
+                    <select id="colorQuantity">
+                        <option value="velocity">Velocity Magnitude</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="vorticity">Vorticity</option>
+                        <option value="density">Density</option>
+                        <option value="temperature">Temperature</option>
+                    </select>
+                </label>
+                <label>
+                    Palette:
+                    <select id="colorPalette">
+                        <option value="viridis">Viridis</option>
+                        <option value="plasma">Plasma</option>
+                        <option value="inferno">Inferno</option>
+                        <option value="magma">Magma</option>
+                        <option value="jet">Jet</option>
+                        <option value="coolwarm">Cool-Warm</option>
+                    </select>
+                </label>
+                <label>
+                    <input type="checkbox" id="showGrid"> Show Grid
+                </label>
+            </div>
+        </div>
+
+        <!-- Flow Element Modal -->
+        <div id="flowModal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Add Flow Element</h3>
+                <label>
+                    Type:
+                    <select id="flowType">
+                        <option value="uniform">Uniform Flow</option>
+                        <option value="source">Source</option>
+                        <option value="sink">Sink</option>
+                        <option value="vortex">Vortex</option>
+                        <option value="doublet">Doublet</option>
+                    </select>
+                </label>
+                <div id="flowParams"></div>
+                <div class="modal-buttons">
+                    <button id="addFlowConfirm" class="btn-primary">Add</button>
+                    <button id="cancelFlowBtn" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="colorMaps.js"></script>
+    <script src="potentialFlow.js"></script>
+    <script src="navierStokes.js"></script>
+    <script src="visualization.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
