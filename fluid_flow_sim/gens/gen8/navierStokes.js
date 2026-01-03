@@ -239,12 +239,18 @@ class NavierStokesSolver {
 
     // Reset simulation
     reset() {
+        // Recreate all arrays with current dimensions
         this.u = this.create2DArray(this.nx + 1, this.ny + 2);
         this.v = this.create2DArray(this.nx + 2, this.ny + 1);
         this.u_prev = this.create2DArray(this.nx + 1, this.ny + 2);
         this.v_prev = this.create2DArray(this.nx + 2, this.ny + 1);
         this.p = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.density = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.temperature = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.obstacle = this.create2DArray(this.nx + 2, this.ny + 2);
+        
         this.initializeFields();
+        this.time = 0;
     }
 
     // Update grid resolution
@@ -252,8 +258,20 @@ class NavierStokesSolver {
         this.gridSize = newGridSize;
         this.nx = Math.floor(this.width / newGridSize);
         this.ny = Math.floor(this.height / newGridSize);
-        this.reset();
+        
+        // Recreate all arrays with new dimensions
+        this.u = this.create2DArray(this.nx + 1, this.ny + 2);
+        this.v = this.create2DArray(this.nx + 2, this.ny + 1);
+        this.u_prev = this.create2DArray(this.nx + 1, this.ny + 2);
+        this.v_prev = this.create2DArray(this.nx + 2, this.ny + 1);
+        this.p = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.density = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.temperature = this.create2DArray(this.nx + 2, this.ny + 2);
+        this.obstacle = this.create2DArray(this.nx + 2, this.ny + 2);
+        
+        this.initializeFields();
         this.updateObstacles();
+        this.time = 0;
     }
 
     // Add heat source
