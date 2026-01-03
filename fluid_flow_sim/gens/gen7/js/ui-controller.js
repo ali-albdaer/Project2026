@@ -40,10 +40,21 @@ class UIController {
         document.getElementById('toggleGrid').addEventListener('click', () => this.toggleGrid());
         document.getElementById('resetView').addEventListener('click', () => this.resetView());
 
-        // ESC key to exit zen mode
+        // ESC key to exit zen mode, Z for zen, P for probe
         document.addEventListener('keydown', (e) => {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+            
             if (e.key === 'Escape' && this.isZenMode) {
                 this.toggleZenMode();
+            } else if (e.key === 'z' || e.key === 'Z') {
+                this.toggleZenMode();
+            } else if (e.key === 'p' || e.key === 'P') {
+                this.toggleProbe();
+            } else if (e.key === 'g' || e.key === 'G') {
+                this.toggleGrid();
             }
         });
 

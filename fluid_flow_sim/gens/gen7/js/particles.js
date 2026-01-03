@@ -134,10 +134,16 @@ class ParticleSystem {
             
             // Respawn logic based on conservation mode
             if (this.conserveParticles) {
-                // Only respawn if out of bounds
+                // In conservation mode: only respawn at edges (wrap around)
                 if (outOfBounds) {
-                    this.respawnParticle(p);
+                    // Wrap to opposite edge instead of random respawn
+                    if (p.x > this.domain.xMax) p.x = this.domain.xMin;
+                    else if (p.x < this.domain.xMin) p.x = this.domain.xMax;
+                    if (p.y > this.domain.yMax) p.y = this.domain.yMin;
+                    else if (p.y < this.domain.yMin) p.y = this.domain.yMax;
+                    p.trail = [];
                 }
+                // Do NOT respawn due to age - particles live forever
             } else {
                 // Original behavior: respawn if out of bounds or too old
                 if (outOfBounds || p.age > p.maxAge) {

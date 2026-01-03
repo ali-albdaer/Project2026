@@ -32,6 +32,10 @@ class FluidFlowApp {
         // Setup
         this.resize();
         this.loadDefaultScene();
+        
+        // Initialize particles since they are enabled by default
+        this.particles.init();
+        
         this.start();
     }
 
@@ -152,6 +156,12 @@ class FluidFlowApp {
      * Update potential flow mode
      */
     updatePotentialFlow(dt) {
+        // Check if flow field changed and invalidate visualization cache
+        if (this.potentialFlow.needsUpdate) {
+            this.visualization.invalidateCache();
+            // Note: needsUpdate will be reset by potentialFlow when it recalculates its fields
+        }
+        
         // Render flow field
         this.visualization.renderPotentialFlow(this.potentialFlow);
         
