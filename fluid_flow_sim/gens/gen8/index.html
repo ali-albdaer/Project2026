@@ -82,16 +82,54 @@
                     <label>
                         Iterations: <input type="number" id="iterations" value="20" step="1" min="1">
                     </label>
+                    <label>
+                        Grid Resolution: <input type="number" id="gridResolution" value="6" step="1" min="3" max="12">
+                    </label>
                 </div>
 
                 <div class="control-group">
-                    <h4>Boundary Conditions</h4>
+                    <h4>Flow Type</h4>
+                    <select id="flowTypeNS">
+                        <option value="uniform">Uniform Flow</option>
+                        <option value="jet">Jet</option>
+                        <option value="vortexStreet">Vortex Street</option>
+                        <option value="pulsating">Pulsating Flow</option>
+                        <option value="thermal">Thermal Convection</option>
+                    </select>
                     <label>
                         Inlet Velocity: <input type="number" id="inletVelocity" value="5.0" step="0.5">
                     </label>
                     <label>
-                        <input type="checkbox" id="enableObstacle" checked> Add Obstacle
+                        <input type="checkbox" id="enableHeatSource"> Add Heat Source
                     </label>
+                </div>
+
+                <div class="control-group">
+                    <h4>Visualization</h4>
+                    <select id="nsVisualization">
+                        <option value="streamlines">Streamlines</option>
+                        <option value="velocity">Velocity Field</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="vorticity">Vorticity</option>
+                        <option value="temperature">Temperature</option>
+                        <option value="density">Density</option>
+                    </select>
+                    <label>
+                        <input type="checkbox" id="showVectorsNS"> Show Velocity Vectors
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <h4>Geometries</h4>
+                    <div id="obstacleList"></div>
+                    <select id="obstacleType">
+                        <option value="circle">Circle</option>
+                        <option value="rectangle">Rectangle</option>
+                        <option value="ellipse">Ellipse</option>
+                        <option value="airfoil">Airfoil</option>
+                    </select>
+                    <button id="addObstacleBtn" class="btn-primary">Add Geometry</button>
+                    <p style="font-size: 11px; color: #a0aec0; margin-top: 8px;">Drag geometries on canvas to move</p>
                 </div>
 
                 <div class="control-group">

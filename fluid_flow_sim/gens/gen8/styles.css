@@ -92,6 +92,7 @@ header h1 {
     background: #0a0e27;
     box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
     cursor: crosshair;
+    user-select: none;
 }
 
 /* Probe Info */
@@ -253,7 +254,7 @@ header h1 {
 }
 
 /* Flow List */
-#flowList {
+#flowList, #obstacleList {
     max-height: 300px;
     overflow-y: auto;
 }

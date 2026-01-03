@@ -8,19 +8,24 @@ class FluidSimApp {
         this.isPaused = false;
         this.animationId = null;
         
+        // Dragging state
+        this.isDragging = false;
+        this.draggedGeometry = null;
+        this.dragOffset = { x: 0, y: 0 };
+        
         // Initialize simulators
         this.potentialFlow = new PotentialFlow(this.canvas.width, this.canvas.height);
-        this.navierStokes = new NavierStokesSolver(this.canvas.width, this.canvas.height, 8);
+        this.navierStokes = new NavierStokesSolver(this.canvas.width, this.canvas.height, 6);
         
         // Initialize visualizer
         this.visualizer = new FlowVisualizer(this.canvas, this.potentialFlow);
         
-        // Add default obstacle for NS
-        this.navierStokes.addCircularObstacle(
-            this.canvas.width / 3,
-            this.canvas.height / 2,
-            40
-        );
+        // Add default geometry for NS
+        this.navierStokes.addGeometry('circle', {
+            x: this.canvas.width / 3,
+            y: this.canvas.height / 2,
+            radius: 40
+        });
         
         this.setupEventListeners();
         this.setupUI();
@@ -109,27 +114,41 @@ class FluidSimApp {
             this.navierStokes.iterations = parseInt(e.target.value);
         });
         
-        document.getElementById('enableObstacle').addEventListener('change', (e) => {
-            if (!e.target.checked) {
-                this.navierStokes.clearObstacles();
-            } else {
-                this.navierStokes.addCircularObstacle(
-                    this.canvas.width / 3,
+        document.getElementById('gridResolution').addEventListener('change', (e) => {
+            this.navierStokes.updateGridSize(parseInt(e.target.value));
+        });
+        
+        document.getElementById('flowTypeNS').addEventListener('change', (e) => {
+            this.navierStokes.flowType = e.target.value;
+        });
+        
+        document.getElementById('nsVisualization').addEventListener('change', (e) => {
+            this.visualizer.nsVisualization = e.target.value;
+        });
+        
+        document.getElementById('showVectorsNS').addEventListener('change', (e) => {
+            this.visualizer.showVectorsNS = e.target.checked;
+        });
+        
+        document.getElementById('enableHeatSource').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.navierStokes.addHeatSource(
+                    this.canvas.width / 4,
                     this.canvas.height / 2,
-                    40
+                    50,
+                    30
                 );
+            } else {
+                this.navierStokes.clearHeatSources();
             }
+        });
+        
+        document.getElementById('addObstacleBtn').addEventListener('click', () => {
+            this.addGeometry();
         });
         
         document.getElementById('resetSimBtn').addEventListener('click', () => {
             this.navierStokes.reset();
-            if (document.getElementById('enableObstacle').checked) {
-                this.navierStokes.addCircularObstacle(
-                    this.canvas.width / 3,
-                    this.canvas.height / 2,
-                    40
-                );
-            }
         });
         
         document.getElementById('pauseSimBtn').addEventListener('click', () => {
@@ -138,28 +157,29 @@ class FluidSimApp {
                 this.isPaused ? 'Resume' : 'Pause';
         });
         
-        // Probe tool
+        // Canvas mouse events for dragging geometries
+        this.canvas.addEventListener('mousedown', (e) => {
+            this.handleMouseDown(e);
+        });
+        
         this.canvas.addEventListener('mousemove', (e) => {
-            this.handleProbe(e);
+            this.handleMouseMove(e);
+        });
+        
+        this.canvas.addEventListener('mouseup', (e) => {
+            this.handleMouseUp(e);
         });
         
         this.canvas.addEventListener('mouseleave', () => {
             document.getElementById('probeInfo').classList.add('hidden');
-        });
-        
-        // Click to add flow element (potential flow mode)
-        this.canvas.addEventListener('click', (e) => {
-            if (this.mode === 'potential' && this.clickToAddFlow) {
-                const rect = this.canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                this.addFlowAtPosition(x, y);
-            }
+            this.isDragging = false;
+            this.draggedGeometry = null;
         });
     }
 
     setupUI() {
         this.updateFlowList();
+        this.updateObstacleList();
     }
 
     switchMode(newMode) {
@@ -182,6 +202,8 @@ class FluidSimApp {
     }
 
     handleProbe(e) {
+        if (this.isDragging) return;
+        
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -209,12 +231,129 @@ class FluidSimApp {
             const p = this.navierStokes.getPressure(x, y);
             const vort = this.navierStokes.getVorticity(x, y);
             const rho = this.navierStokes.getDensity(x, y);
-            html += `<div><strong>Pressure:</strong> ${p.toFixed(3)}</div>`;
-            html += `<div><strong>Vorticity:</strong> ${vort.toFixed(3)}</div>`;
+            const temp = this.navierStokes.getTemperature(x, y);
+            html += `<div><strong>Pressure:</strong> ${p.toFixed(4)}</div>`;
+            html += `<div><strong>Vorticity:</strong> ${vort.toFixed(4)}</div>`;
             html += `<div><strong>Density:</strong> ${rho.toFixed(3)}</div>`;
+            html += `<div><strong>Temperature:</strong> ${temp.toFixed(2)} K</div>`;
         }
         
         probeInfo.innerHTML = html;
+    }
+
+    handleMouseDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if (this.mode === 'navier-stokes') {
+            const geom = this.navierStokes.getGeometryAtPoint(x, y);
+            if (geom) {
+                this.isDragging = true;
+                this.draggedGeometry = geom;
+                this.dragOffset = {
+                    x: x - geom.params.x,
+                    y: y - geom.params.y
+                };
+                this.canvas.style.cursor = 'grabbing';
+            }
+        }
+    }
+
+    handleMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if (this.isDragging && this.draggedGeometry) {
+            const newX = x - this.dragOffset.x;
+            const newY = y - this.dragOffset.y;
+            this.navierStokes.moveGeometry(this.draggedGeometry.id, newX, newY);
+        } else if (this.mode === 'navier-stokes') {
+            const geom = this.navierStokes.getGeometryAtPoint(x, y);
+            this.canvas.style.cursor = geom ? 'grab' : 'crosshair';
+        }
+        
+        this.handleProbe(e);
+    }
+
+    handleMouseUp(e) {
+        this.isDragging = false;
+        this.draggedGeometry = null;
+        if (this.mode === 'navier-stokes') {
+            this.canvas.style.cursor = 'crosshair';
+        }
+    }
+
+    addGeometry() {
+        const type = document.getElementById('obstacleType').value;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        let params = { x: centerX, y: centerY };
+        
+        switch (type) {
+            case 'circle':
+                params.radius = 50;
+                break;
+            case 'rectangle':
+                params.width = 100;
+                params.height = 60;
+                break;
+            case 'ellipse':
+                params.a = 60;
+                params.b = 40;
+                break;
+            case 'airfoil':
+                params.chord = 120;
+                break;
+        }
+        
+        this.navierStokes.addGeometry(type, params);
+        this.updateObstacleList();
+    }
+
+    updateObstacleList() {
+        const obstacleList = document.getElementById('obstacleList');
+        obstacleList.innerHTML = '';
+        
+        for (const geom of this.navierStokes.geometries) {
+            const div = document.createElement('div');
+            div.className = 'flow-item';
+            
+            let paramStr = '';
+            switch (geom.type) {
+                case 'circle':
+                    paramStr = `r=${geom.params.radius.toFixed(0)}`;
+                    break;
+                case 'rectangle':
+                    paramStr = `${geom.params.width.toFixed(0)}×${geom.params.height.toFixed(0)}`;
+                    break;
+                case 'ellipse':
+                    paramStr = `a=${geom.params.a.toFixed(0)}, b=${geom.params.b.toFixed(0)}`;
+                    break;
+                case 'airfoil':
+                    paramStr = `chord=${geom.params.chord.toFixed(0)}`;
+                    break;
+            }
+            
+            div.innerHTML = `
+                <div class="flow-item-info">
+                    <div class="flow-item-type">${geom.type.charAt(0).toUpperCase() + geom.type.slice(1)}</div>
+                    <div class="flow-item-params">${paramStr} @ (${geom.params.x.toFixed(0)}, ${geom.params.y.toFixed(0)})</div>
+                </div>
+                <button class="flow-item-remove" data-id="${geom.id}">Remove</button>
+            `;
+            
+            const removeBtn = div.querySelector('.flow-item-remove');
+            const geomId = geom.id;
+            removeBtn.addEventListener('click', () => {
+                this.navierStokes.removeGeometry(geomId);
+                this.updateObstacleList();
+            });
+            
+            obstacleList.appendChild(div);
+        }
     }
 
     showFlowModal() {
@@ -331,8 +470,10 @@ class FluidSimApp {
                 <button class="flow-item-remove" data-id="${flow.id}">Remove</button>
             `;
             
-            div.querySelector('.flow-item-remove').addEventListener('click', (e) => {
-                this.potentialFlow.removeFlow(parseInt(e.target.dataset.id));
+            const removeBtn = div.querySelector('.flow-item-remove');
+            const flowId = flow.id;
+            removeBtn.addEventListener('click', () => {
+                this.potentialFlow.removeFlow(flowId);
                 this.updateFlowList();
                 document.getElementById('scenarioSelect').value = 'custom';
             });

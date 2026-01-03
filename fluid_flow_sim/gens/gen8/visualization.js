@@ -15,6 +15,10 @@ class FlowVisualizer {
         this.showGrid = false;
         this.colorQuantity = 'velocity';
         this.colorPalette = 'viridis';
+        
+        // NS-specific visualization
+        this.nsVisualization = 'streamlines';
+        this.showVectorsNS = false;
     }
 
     clear() {
@@ -309,16 +313,92 @@ class FlowVisualizer {
     drawObstacles() {
         if (!(this.simulator instanceof NavierStokesSolver)) return;
         
-        this.ctx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+        // Draw geometries with better visualization
+        for (const geom of this.simulator.geometries) {
+            this.drawGeometry(geom);
+        }
+    }
+
+    drawGeometry(geom) {
+        const { type, params } = geom;
         
-        const gridSize = this.simulator.gridSize;
-        for (let i = 0; i < this.simulator.nx + 2; i++) {
-            for (let j = 0; j < this.simulator.ny + 2; j++) {
-                if (this.simulator.obstacle[i][j]) {
-                    this.ctx.fillRect(i * gridSize, j * gridSize, gridSize, gridSize);
-                }
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(150, 150, 150, 0.9)';
+        this.ctx.strokeStyle = 'rgba(200, 200, 200, 1)';
+        this.ctx.lineWidth = 2;
+
+        switch (type) {
+            case 'circle':
+                this.ctx.beginPath();
+                this.ctx.arc(params.x, params.y, params.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.stroke();
+                break;
+            
+            case 'rectangle':
+                this.ctx.fillRect(
+                    params.x - params.width / 2,
+                    params.y - params.height / 2,
+                    params.width,
+                    params.height
+                );
+                this.ctx.strokeRect(
+                    params.x - params.width / 2,
+                    params.y - params.height / 2,
+                    params.width,
+                    params.height
+                );
+                break;
+            
+            case 'ellipse':
+                this.ctx.beginPath();
+                this.ctx.ellipse(params.x, params.y, params.a, params.b, 0, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.stroke();
+                break;
+            
+            case 'airfoil':
+                this.drawAirfoil(params);
+                break;
+        }
+
+        this.ctx.restore();
+    }
+
+    drawAirfoil(params) {
+        const chord = params.chord || 100;
+        const x0 = params.x - chord / 2;
+        const y0 = params.y;
+        
+        this.ctx.beginPath();
+        
+        // Upper surface
+        for (let i = 0; i <= 50; i++) {
+            const x = i / 50;
+            const t = 0.12;
+            const yt = 5 * t * chord * (0.2969 * Math.sqrt(x) - 0.1260 * x - 
+                       0.3516 * x * x + 0.2843 * x * x * x - 0.1015 * x * x * x * x);
+            
+            if (i === 0) {
+                this.ctx.moveTo(x0 + x * chord, y0 - yt);
+            } else {
+                this.ctx.lineTo(x0 + x * chord, y0 - yt);
             }
         }
+        
+        // Lower surface
+        for (let i = 50; i >= 0; i--) {
+            const x = i / 50;
+            const t = 0.12;
+            const yt = 5 * t * chord * (0.2969 * Math.sqrt(x) - 0.1260 * x - 
+                       0.3516 * x * x + 0.2843 * x * x * x - 0.1015 * x * x * x * x);
+            
+            this.ctx.lineTo(x0 + x * chord, y0 + yt);
+        }
+        
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.stroke();
     }
 
     // Draw flow elements (for potential flow)
@@ -369,6 +449,14 @@ class FlowVisualizer {
         this.clear();
         this.drawGrid();
         
+        if (this.simulator instanceof NavierStokesSolver) {
+            this.renderNavierStokes();
+        } else {
+            this.renderPotentialFlow();
+        }
+    }
+
+    renderPotentialFlow() {
         if (this.showColorMap) {
             this.renderColorMap();
         }
@@ -376,7 +464,108 @@ class FlowVisualizer {
         this.drawStreamlines();
         this.drawPotentialLines();
         this.drawVelocityField();
-        this.drawObstacles();
         this.drawFlowElements();
+    }
+
+    renderNavierStokes() {
+        // Always show some visualization based on selected mode
+        switch (this.nsVisualization) {
+            case 'streamlines':
+                this.drawNSStreamlines();
+                break;
+            
+            case 'velocity':
+            case 'pressure':
+            case 'vorticity':
+            case 'temperature':
+            case 'density':
+                this.renderNSColorMap(this.nsVisualization);
+                break;
+        }
+        
+        // Optionally overlay velocity vectors
+        if (this.showVectorsNS) {
+            this.drawVelocityField();
+        }
+        
+        // Always draw obstacles on top
+        this.drawObstacles();
+        
+        // Draw heat sources if any
+        this.drawHeatSources();
+    }
+
+    renderNSColorMap(quantity) {
+        const imageData = this.ctx.createImageData(this.width, this.height);
+        const data = imageData.data;
+        
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+        
+        // Sample to find range
+        for (let y = 0; y < this.height; y += 2) {
+            for (let x = 0; x < this.width; x += 2) {
+                const value = this.getNSQuantityValue(x, y, quantity);
+                minVal = Math.min(minVal, value);
+                maxVal = Math.max(maxVal, value);
+            }
+        }
+        
+        // Avoid division by zero
+        if (maxVal - minVal < 0.001) {
+            maxVal = minVal + 1;
+        }
+        
+        // Render
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                const idx = (y * this.width + x) * 4;
+                const value = this.getNSQuantityValue(x, y, quantity);
+                const normalized = (value - minVal) / (maxVal - minVal);
+                
+                const color = this.getColorFromPalette(normalized);
+                data[idx] = color[0];
+                data[idx + 1] = color[1];
+                data[idx + 2] = color[2];
+                data[idx + 3] = 200;
+            }
+        }
+        
+        this.ctx.putImageData(imageData, 0, 0);
+    }
+
+    getNSQuantityValue(x, y, quantity) {
+        switch (quantity) {
+            case 'velocity':
+                return this.simulator.getVelocity(x, y).magnitude;
+            case 'pressure':
+                return this.simulator.getPressure(x, y);
+            case 'vorticity':
+                return this.simulator.getVorticity(x, y);
+            case 'temperature':
+                return this.simulator.getTemperature(x, y);
+            case 'density':
+                return this.simulator.getDensity(x, y);
+            default:
+                return this.simulator.getVelocity(x, y).magnitude;
+        }
+    }
+
+    drawHeatSources() {
+        if (!(this.simulator instanceof NavierStokesSolver)) return;
+        
+        for (const source of this.simulator.heatSources) {
+            this.ctx.save();
+            this.ctx.fillStyle = 'rgba(255, 100, 0, 0.6)';
+            this.ctx.strokeStyle = 'rgba(255, 150, 50, 1)';
+            this.ctx.lineWidth = 2;
+            
+            this.ctx.beginPath();
+            this.ctx.arc(source.x, source.y, source.radius, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.stroke();
+            
+            this.ctx.restore();
+        }
     }
 }

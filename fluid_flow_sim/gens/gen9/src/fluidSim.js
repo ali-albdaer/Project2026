@@ -368,82 +368,96 @@ export class FluidSim {
     const pal = opts.palette;
     const q = opts.quantity || 'speed';
 
-    // Determine range (robust-ish) by sampling.
-    let minV = Infinity;
-    let maxV = -Infinity;
-    const samples = 350;
-    for (let s = 0; s < samples; s++) {
-      const i = (s * 131) % n;
-      const j = (s * 97) % n;
-      const k = idx(i, j, n);
-      let v;
-      if (q === 'speed') v = Math.hypot(this.u[k], this.v[k]);
-      else if (q === 'pressure') v = this.p[k];
-      else if (q === 'density') v = this.rho[k];
-      else if (q === 'temp') v = this.temp[k];
-      else if (q === 'vorticity') {
-        // approximate
-        const i0 = Math.max(1, Math.min(n - 2, i));
-        const j0 = Math.max(1, Math.min(n - 2, j));
-        const h = 1 / (n - 1);
-        const dvdx = (this.v[idx(i0 + 1, j0, n)] - this.v[idx(i0 - 1, j0, n)]) / (2 * h);
-        const dudy = (this.u[idx(i0, j0 + 1, n)] - this.u[idx(i0, j0 - 1, n)]) / (2 * h);
-        v = dvdx - dudy;
-      } else v = 0;
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
+    // Render at simulation resolution (n×n) then scale up.
+    // This is faster and avoids “nearly black” screens when values are small.
+    if (!this._imgCanvas) {
+      this._imgCanvas = document.createElement('canvas');
+      this._imgCtx = this._imgCanvas.getContext('2d', { willReadFrequently: true });
+      this._imgData = null;
+    }
+    if (this._imgCanvas.width !== n || this._imgCanvas.height !== n || !this._imgData) {
+      this._imgCanvas.width = n;
+      this._imgCanvas.height = n;
+      this._imgData = this._imgCtx.createImageData(n, n);
     }
 
-    if (!Number.isFinite(minV) || !Number.isFinite(maxV) || Math.abs(maxV - minV) < 1e-10) {
-      minV = 0;
-      maxV = 1;
-    }
+    // Compute normalization constants.
+    let maxSpeed = 1e-6;
+    let maxRho = 1e-6;
+    let maxTemp = 1e-6;
+    let maxAbsP = 1e-6;
+    let maxAbsW = 1e-6;
 
-    // Symmetric range for signed quantities
-    if (q === 'pressure' || q === 'vorticity') {
-      const a = Math.max(Math.abs(minV), Math.abs(maxV));
-      minV = -a;
-      maxV = a;
-    }
-
-    const img = ctx.createImageData(width, height);
-    const data = img.data;
-
-    for (let py = 0; py < height; py++) {
-      const y = py / (height - 1);
-      for (let px = 0; px < width; px++) {
-        const x = px / (width - 1);
-        const i = Math.floor(x * (n - 1));
-        const j = Math.floor(y * (n - 1));
+    const h = 1 / (n - 1);
+    for (let j = 1; j < n - 1; j++) {
+      for (let i = 1; i < n - 1; i++) {
         const k = idx(i, j, n);
+        const u = this.u[k];
+        const v = this.v[k];
+        const sp = Math.hypot(u, v);
+        if (sp > maxSpeed) maxSpeed = sp;
+        const r = this.rho[k];
+        if (r > maxRho) maxRho = r;
+        const te = this.temp[k];
+        if (te > maxTemp) maxTemp = te;
+        const p = this.p[k];
+        const ap = Math.abs(p);
+        if (ap > maxAbsP) maxAbsP = ap;
 
-        let val;
-        if (q === 'speed') val = Math.hypot(this.u[k], this.v[k]);
-        else if (q === 'pressure') val = this.p[k];
-        else if (q === 'density') val = this.rho[k];
-        else if (q === 'temp') val = this.temp[k];
-        else if (q === 'vorticity') {
-          const i0 = Math.max(1, Math.min(n - 2, i));
-          const j0 = Math.max(1, Math.min(n - 2, j));
-          const h = 1 / (n - 1);
-          const dvdx = (this.v[idx(i0 + 1, j0, n)] - this.v[idx(i0 - 1, j0, n)]) / (2 * h);
-          const dudy = (this.u[idx(i0, j0 + 1, n)] - this.u[idx(i0, j0 - 1, n)]) / (2 * h);
-          val = dvdx - dudy;
-        } else val = 0;
-
-        let t = (val - minV) / (maxV - minV);
-        t = clamp(t, 0, 1);
-        const c = pal.sample(t);
-
-        const o = (px + py * width) * 4;
-        data[o + 0] = c.r;
-        data[o + 1] = c.g;
-        data[o + 2] = c.b;
-        data[o + 3] = 255;
+        // vorticity
+        const dvdx = (this.v[idx(i + 1, j, n)] - this.v[idx(i - 1, j, n)]) / (2 * h);
+        const dudy = (this.u[idx(i, j + 1, n)] - this.u[idx(i, j - 1, n)]) / (2 * h);
+        const w = dvdx - dudy;
+        const aw = Math.abs(w);
+        if (aw > maxAbsW) maxAbsW = aw;
       }
     }
 
-    ctx.putImageData(img, 0, 0);
+    // Gamma to boost contrast for small magnitudes.
+    const gamma = q === 'speed' ? 0.45 : q === 'density' ? 0.60 : q === 'temp' ? 0.60 : 0.75;
+
+    const img = this._imgData;
+    const data = img.data;
+    let o = 0;
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        const k = idx(i, j, n);
+        let t = 0;
+        if (q === 'speed') {
+          const sp = Math.hypot(this.u[k], this.v[k]);
+          t = clamp(sp / (0.85 * maxSpeed + 1e-6), 0, 1);
+        } else if (q === 'density') {
+          t = clamp(this.rho[k] / (0.85 * maxRho + 1e-6), 0, 1);
+        } else if (q === 'temp') {
+          t = clamp(this.temp[k] / (0.85 * maxTemp + 1e-6), 0, 1);
+        } else if (q === 'pressure') {
+          t = 0.5 + 0.5 * clamp(this.p[k] / (0.85 * maxAbsP + 1e-6), -1, 1);
+        } else if (q === 'vorticity') {
+          // compute local vorticity (interior); edges just use 0
+          if (i > 0 && j > 0 && i < n - 1 && j < n - 1) {
+            const dvdx = (this.v[idx(i + 1, j, n)] - this.v[idx(i - 1, j, n)]) / (2 * h);
+            const dudy = (this.u[idx(i, j + 1, n)] - this.u[idx(i, j - 1, n)]) / (2 * h);
+            const w = dvdx - dudy;
+            t = 0.5 + 0.5 * clamp(w / (0.85 * maxAbsW + 1e-6), -1, 1);
+          } else {
+            t = 0.5;
+          }
+        }
+
+        t = Math.pow(clamp(t, 0, 1), gamma);
+        const c = pal.sample(t);
+        data[o++] = c.r;
+        data[o++] = c.g;
+        data[o++] = c.b;
+        data[o++] = 255;
+      }
+    }
+
+    this._imgCtx.putImageData(img, 0, 0);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this._imgCanvas, 0, 0, width, height);
+    ctx.imageSmoothingEnabled = prev;
 
     // overlay velocity arrows (sparse)
     ctx.save();

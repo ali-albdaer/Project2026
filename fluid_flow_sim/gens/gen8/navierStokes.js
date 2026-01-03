@@ -21,11 +21,20 @@ class NavierStokesSolver {
         // Obstacle mask
         this.obstacle = this.create2DArray(this.nx + 2, this.ny + 2);
         
+        // Geometry objects
+        this.geometries = [];
+        
+        // Flow configuration
+        this.flowType = 'uniform';
+        this.time = 0;
+        this.heatSources = [];
+        
         // Simulation parameters
         this.viscosity = 0.001;
         this.density_value = 1.0;
         this.dt = 0.1;
         this.iterations = 20;
+        this.inletVelocity = 5.0;
         
         this.initializeFields();
     }
@@ -48,28 +57,182 @@ class NavierStokesSolver {
         }
     }
 
-    // Add circular obstacle
-    addCircularObstacle(cx, cy, radius) {
-        const gridCx = Math.floor(cx / this.gridSize);
-        const gridCy = Math.floor(cy / this.gridSize);
-        const gridRadius = radius / this.gridSize;
+    // Add geometry
+    addGeometry(type, params) {
+        const geometry = {
+            type,
+            params: { ...params },
+            id: Date.now()
+        };
+        this.geometries.push(geometry);
+        this.updateObstacles();
+        return geometry.id;
+    }
+
+    // Remove geometry
+    removeGeometry(id) {
+        this.geometries = this.geometries.filter(g => g.id !== id);
+        this.updateObstacles();
+    }
+
+    // Move geometry
+    moveGeometry(id, newX, newY) {
+        const geom = this.geometries.find(g => g.id === id);
+        if (geom) {
+            geom.params.x = newX;
+            geom.params.y = newY;
+            this.updateObstacles();
+        }
+    }
+
+    // Get geometry at point
+    getGeometryAtPoint(x, y) {
+        for (let i = this.geometries.length - 1; i >= 0; i--) {
+            const geom = this.geometries[i];
+            if (this.isPointInGeometry(x, y, geom)) {
+                return geom;
+            }
+        }
+        return null;
+    }
+
+    // Check if point is in geometry
+    isPointInGeometry(x, y, geom) {
+        const { type, params } = geom;
+        const dx = x - params.x;
+        const dy = y - params.y;
+
+        switch (type) {
+            case 'circle':
+                return dx * dx + dy * dy <= params.radius * params.radius;
+            
+            case 'rectangle':
+                return Math.abs(dx) <= params.width / 2 && 
+                       Math.abs(dy) <= params.height / 2;
+            
+            case 'ellipse':
+                return (dx * dx) / (params.a * params.a) + 
+                       (dy * dy) / (params.b * params.b) <= 1;
+            
+            case 'airfoil':
+                return this.isPointInAirfoil(dx, dy, params);
+            
+            default:
+                return false;
+        }
+    }
+
+    // NACA 4-digit airfoil
+    isPointInAirfoil(dx, dy, params) {
+        const chord = params.chord || 100;
+        const x = dx / chord + 0.5; // Normalize to 0-1
+        const y = dy / chord;
         
+        if (x < 0 || x > 1) return false;
+        
+        // NACA 0012 profile thickness
+        const t = 0.12;
+        const yt = 5 * t * chord * (0.2969 * Math.sqrt(x) - 0.1260 * x - 
+                   0.3516 * x * x + 0.2843 * x * x * x - 0.1015 * x * x * x * x);
+        
+        return Math.abs(y * chord) <= yt;
+    }
+
+    // Update obstacle mask based on geometries
+    updateObstacles() {
+        // Clear obstacle mask
         for (let i = 0; i < this.nx + 2; i++) {
             for (let j = 0; j < this.ny + 2; j++) {
-                const dx = i - gridCx;
-                const dy = j - gridCy;
-                if (dx * dx + dy * dy < gridRadius * gridRadius) {
+                this.obstacle[i][j] = 0;
+            }
+        }
+
+        // Add all geometries to obstacle mask
+        for (const geom of this.geometries) {
+            this.addGeometryToObstacles(geom);
+        }
+    }
+
+    // Add a single geometry to obstacle mask
+    addGeometryToObstacles(geom) {
+        const { type, params } = geom;
+        const gridX = params.x / this.gridSize;
+        const gridY = params.y / this.gridSize;
+
+        switch (type) {
+            case 'circle':
+                this.addCircleObstacle(gridX, gridY, params.radius / this.gridSize);
+                break;
+            
+            case 'rectangle':
+                this.addRectangleObstacle(gridX, gridY, 
+                    params.width / this.gridSize, params.height / this.gridSize);
+                break;
+            
+            case 'ellipse':
+                this.addEllipseObstacle(gridX, gridY, 
+                    params.a / this.gridSize, params.b / this.gridSize);
+                break;
+            
+            case 'airfoil':
+                this.addAirfoilObstacle(gridX, gridY, params.chord / this.gridSize);
+                break;
+        }
+    }
+
+    addCircleObstacle(cx, cy, radius) {
+        for (let i = 0; i < this.nx + 2; i++) {
+            for (let j = 0; j < this.ny + 2; j++) {
+                const dx = i - cx;
+                const dy = j - cy;
+                if (dx * dx + dy * dy < radius * radius) {
                     this.obstacle[i][j] = 1;
                 }
             }
         }
     }
 
-    // Clear obstacles
-    clearObstacles() {
+    addRectangleObstacle(cx, cy, width, height) {
         for (let i = 0; i < this.nx + 2; i++) {
             for (let j = 0; j < this.ny + 2; j++) {
-                this.obstacle[i][j] = 0;
+                const dx = Math.abs(i - cx);
+                const dy = Math.abs(j - cy);
+                if (dx <= width / 2 && dy <= height / 2) {
+                    this.obstacle[i][j] = 1;
+                }
+            }
+        }
+    }
+
+    addEllipseObstacle(cx, cy, a, b) {
+        for (let i = 0; i < this.nx + 2; i++) {
+            for (let j = 0; j < this.ny + 2; j++) {
+                const dx = i - cx;
+                const dy = j - cy;
+                if ((dx * dx) / (a * a) + (dy * dy) / (b * b) < 1) {
+                    this.obstacle[i][j] = 1;
+                }
+            }
+        }
+    }
+
+    addAirfoilObstacle(cx, cy, chord) {
+        for (let i = 0; i < this.nx + 2; i++) {
+            for (let j = 0; j < this.ny + 2; j++) {
+                const dx = (i - cx) / chord;
+                const dy = (j - cy) / chord;
+                const x = dx + 0.5;
+                const y = dy;
+                
+                if (x >= 0 && x <= 1) {
+                    const t = 0.12;
+                    const yt = 5 * t * (0.2969 * Math.sqrt(x) - 0.1260 * x - 
+                               0.3516 * x * x + 0.2843 * x * x * x - 0.1015 * x * x * x * x);
+                    
+                    if (Math.abs(y) <= yt) {
+                        this.obstacle[i][j] = 1;
+                    }
+                }
             }
         }
     }
@@ -84,12 +247,105 @@ class NavierStokesSolver {
         this.initializeFields();
     }
 
+    // Update grid resolution
+    updateGridSize(newGridSize) {
+        this.gridSize = newGridSize;
+        this.nx = Math.floor(this.width / newGridSize);
+        this.ny = Math.floor(this.height / newGridSize);
+        this.reset();
+        this.updateObstacles();
+    }
+
+    // Add heat source
+    addHeatSource(x, y, intensity, radius) {
+        this.heatSources.push({ x, y, intensity, radius });
+    }
+
+    // Clear heat sources
+    clearHeatSources() {
+        this.heatSources = [];
+    }
+
+    // Apply heat sources to temperature field
+    applyHeatSources() {
+        for (const source of this.heatSources) {
+            const gridX = Math.floor(source.x / this.gridSize);
+            const gridY = Math.floor(source.y / this.gridSize);
+            const gridRadius = source.radius / this.gridSize;
+            
+            for (let i = 0; i < this.nx + 2; i++) {
+                for (let j = 0; j < this.ny + 2; j++) {
+                    const dx = i - gridX;
+                    const dy = j - gridY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < gridRadius) {
+                        const factor = Math.exp(-dist * dist / (gridRadius * gridRadius));
+                        this.temperature[i][j] += source.intensity * factor * this.dt;
+                    }
+                }
+            }
+        }
+    }
+
+    // Apply buoyancy force (thermal convection)
+    applyBuoyancy() {
+        const g = 9.81; // Gravity
+        const beta = 0.003; // Thermal expansion coefficient
+        const T_ref = 293; // Reference temperature
+        
+        for (let i = 1; i < this.nx + 1; i++) {
+            for (let j = 1; j < this.ny; j++) {
+                if (!this.obstacle[i][j] && !this.obstacle[i][j + 1]) {
+                    const T_avg = (this.temperature[i][j] + this.temperature[i][j + 1]) / 2;
+                    const buoyancy = -g * beta * (T_avg - T_ref) * this.dt;
+                    this.v[i][j] += buoyancy;
+                }
+            }
+        }
+    }
+
     // Apply boundary conditions
     applyBoundaryConditions(inletVelocity) {
-        // Left boundary - inlet
+        this.time += this.dt;
+        
+        // Left boundary - inlet (different flow types)
         for (let j = 1; j < this.ny + 1; j++) {
-            this.u[0][j] = inletVelocity;
-            this.v[0][j] = 0;
+            const yPos = (j - this.ny / 2) / this.ny;
+            
+            switch (this.flowType) {
+                case 'uniform':
+                    this.u[0][j] = inletVelocity;
+                    this.v[0][j] = 0;
+                    break;
+                
+                case 'jet':
+                    // Gaussian jet profile
+                    const jetWidth = 0.2;
+                    this.u[0][j] = inletVelocity * Math.exp(-yPos * yPos / (jetWidth * jetWidth));
+                    this.v[0][j] = 0;
+                    break;
+                
+                case 'vortexStreet':
+                    // Alternating vortices
+                    const vortexFreq = 2.0;
+                    this.u[0][j] = inletVelocity * (1 + 0.2 * Math.sin(this.time * vortexFreq));
+                    this.v[0][j] = inletVelocity * 0.3 * Math.cos(this.time * vortexFreq) * Math.exp(-yPos * yPos / 0.1);
+                    break;
+                
+                case 'pulsating':
+                    // Pulsating flow
+                    const pulsateFreq = 3.0;
+                    this.u[0][j] = inletVelocity * (1 + 0.5 * Math.sin(this.time * pulsateFreq));
+                    this.v[0][j] = 0;
+                    break;
+                
+                case 'thermal':
+                    // Thermal convection setup
+                    this.u[0][j] = inletVelocity * 0.1;
+                    this.v[0][j] = 0;
+                    break;
+            }
         }
         
         // Right boundary - outlet (zero gradient)
@@ -106,6 +362,29 @@ class NavierStokesSolver {
         for (let i = 0; i < this.nx + 2; i++) {
             this.v[i][0] = 0;
             this.v[i][this.ny] = 0;
+        }
+        
+        // No-slip boundary conditions on obstacles
+        this.applyObstacleBoundaryConditions();
+    }
+
+    // Apply no-slip conditions on obstacles
+    applyObstacleBoundaryConditions() {
+        for (let i = 1; i < this.nx; i++) {
+            for (let j = 1; j < this.ny + 1; j++) {
+                // Set velocity to zero at obstacle boundaries
+                if (this.obstacle[i][j] || this.obstacle[i + 1][j]) {
+                    this.u[i][j] = 0;
+                }
+            }
+        }
+        
+        for (let i = 1; i < this.nx + 1; i++) {
+            for (let j = 1; j < this.ny; j++) {
+                if (this.obstacle[i][j] || this.obstacle[i][j + 1]) {
+                    this.v[i][j] = 0;
+                }
+            }
         }
     }
 
@@ -211,6 +490,8 @@ class NavierStokesSolver {
 
     // Time step
     step(inletVelocity) {
+        this.inletVelocity = inletVelocity;
+        
         // Apply boundary conditions
         this.applyBoundaryConditions(inletVelocity);
         
@@ -233,25 +514,26 @@ class NavierStokesSolver {
         this.advect(this.u, this.u_prev, this.u_prev, this.v_prev);
         this.advect(this.v, this.v_prev, this.u_prev, this.v_prev);
         
+        // Temperature advection and diffusion
+        const temp_prev = this.temperature.map(row => [...row]);
+        this.advect(this.temperature, temp_prev, this.u, this.v);
+        this.diffuse(this.temperature, temp_prev, this.viscosity * 0.1); // Thermal diffusivity
+        
+        // Apply heat sources
+        if (this.heatSources.length > 0) {
+            this.applyHeatSources();
+        }
+        
+        // Apply buoyancy for thermal flow
+        if (this.flowType === 'thermal') {
+            this.applyBuoyancy();
+        }
+        
         // Project again
         this.project();
         
-        // Apply obstacle boundary conditions
-        for (let i = 1; i < this.nx; i++) {
-            for (let j = 1; j < this.ny + 1; j++) {
-                if (this.obstacle[i][j] || this.obstacle[i + 1][j]) {
-                    this.u[i][j] = 0;
-                }
-            }
-        }
-        
-        for (let i = 1; i < this.nx + 1; i++) {
-            for (let j = 1; j < this.ny; j++) {
-                if (this.obstacle[i][j] || this.obstacle[i][j + 1]) {
-                    this.v[i][j] = 0;
-                }
-            }
-        }
+        // Apply obstacle boundary conditions (no-slip)
+        this.applyObstacleBoundaryConditions();
     }
 
     // Get velocity at a point

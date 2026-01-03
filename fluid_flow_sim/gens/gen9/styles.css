@@ -49,6 +49,14 @@ body{
   height: calc(100% - 58px);
 }
 
+body.ui-hidden .layout{
+  grid-template-columns: 1fr;
+  height: 100vh;
+}
+
+body.ui-hidden .panel{display:none}
+body.ui-hidden .topbar{display:none}
+
 .panel{
   border-right: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(15,22,32,0.9), rgba(12,18,26,0.8));
@@ -179,4 +187,8 @@ body{
   .layout{grid-template-columns: 1fr; height:auto}
   .panel{border-right:0; border-bottom:1px solid var(--stroke)}
   .viewport{height: calc(100vh - 58px)}
+}
+
+@media (max-width: 1000px){
+  body.ui-hidden .viewport{height: 100vh}
 }

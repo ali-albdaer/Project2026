@@ -6,6 +6,7 @@ import { clamp, fmt, lerp } from './src/util.js';
 const canvas = document.getElementById('canvas');
 const panel = document.getElementById('panel');
 const topbar = document.getElementById('topbar');
+const body = document.body;
 
 const modePotentialBtn = document.getElementById('modePotentialBtn');
 const modeFluidBtn = document.getElementById('modeFluidBtn');
@@ -225,9 +226,8 @@ modeFluidBtn.addEventListener('click', () => setMode('fluid'));
 toggleGridBtn.addEventListener('click', () => (showGrid = !showGrid));
 toggleUiBtn.addEventListener('click', () => {
   showUi = !showUi;
-  panel.style.display = showUi ? '' : 'none';
-  topbar.style.display = showUi ? '' : 'none';
-  // If UI is hidden, canvas needs full height.
+  body.classList.toggle('ui-hidden', !showUi);
+  // Layout changes affect canvas size.
   setTimeout(resizeCanvas, 0);
 });
 
