@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Flow Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-water"></i> Fluid Flow Simulation</h1>
+                <div class="header-controls">
+                    <button id="playPause" class="btn-primary">
+                        <i class="fas fa-play"></i> Start
+                    </button>
+                    <button id="reset" class="btn-secondary">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-cogs"></i> Flow Type</h3>
+                    <select id="flowType" class="select-input">
+                        <option value="uniform">Uniform Flow</option>
+                        <option value="source">Source/Sink</option>
+                        <option value="vortex">Irrotational Vortex</option>
+                        <option value="doublet">Doublet</option>
+                        <option value="halfbody">Half-Body</option>
+                        <option value="cylinder">Flow Around Cylinder</option>
+                        <option value="cylinderCirc">Cylinder with Circulation</option>
+                        <option value="poiseuille">Poiseuille Flow</option>
+                        <option value="couette">Couette Flow</option>
+                        <option value="custom">Custom Flow</option>
+                    </select>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-palette"></i> Visualization</h3>
+                    <select id="visualMode" class="select-input">
+                        <option value="velocity">Velocity Magnitude</option>
+                        <option value="pressure">Pressure</option>
+                        <option value="streamlines">Streamlines</option>
+                        <option value="vorticity">Vorticity</option>
+                        <option value="velocity-vectors">Velocity Vectors</option>
+                        <option value="potential">Velocity Potential</option>
+                        <option value="stream-function">Stream Function</option>
+                    </select>
+                    
+                    <div class="colormap-selector">
+                        <label>Color Map:</label>
+                        <select id="colorMap" class="select-input">
+                            <option value="viridis">Viridis</option>
+                            <option value="plasma">Plasma</option>
+                            <option value="jet">Jet</option>
+                            <option value="coolwarm">Cool-Warm</option>
+                            <option value="rainbow">Rainbow</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sidebar-section" id="parameters">
+                    <h3><i class="fas fa-sliders-h"></i> Parameters</h3>
+                    <div id="parameterControls">
+                        <!-- Dynamic parameters based on flow type -->
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-calculator"></i> Equations</h3>
+                    <div id="equationEditor">
+                        <textarea id="customEquation" class="equation-input" 
+                                  placeholder="Enter custom equations...
+u = ∂ψ/∂y
+v = -∂ψ/∂x"></textarea>
+                        <button id="applyEquation" class="btn-primary">Apply</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-info-circle"></i> Properties</h3>
+                    <div id="fluidProperties">
+                        <div class="property-group">
+                            <label>Density (ρ):</label>
+                            <input type="number" id="density" value="1000" step="10" class="number-input">
+                            <span class="unit">kg/m³</span>
+                        </div>
+                        <div class="property-group">
+                            <label>Viscosity (μ):</label>
+                            <input type="number" id="viscosity" value="0.001" step="0.0001" class="number-input">
+                            <span class="unit">Pa·s</span>
+                        </div>
+                        <div class="property-group">
+                            <label>Temperature (T):</label>
+                            <input type="number" id="temperature" value="293" step="1" class="number-input">
+                            <span class="unit">K</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Simulation Area -->
+            <main class="simulation-area">
+                <div class="canvas-container">
+                    <canvas id="simulationCanvas"></canvas>
+                    <div class="probe-info" id="probeInfo">
+                        <div class="probe-data">
+                            <div class="probe-coords">Position: (<span id="probeX">0</span>, <span id="probeY">0</span>)</div>
+                            <div class="probe-velocity">Velocity: (<span id="probeU">0</span>, <span id="probeV">0</span>) m/s</div>
+                            <div class="probe-pressure">Pressure: <span id="probeP">0</span> Pa</div>
+                            <div class="probe-vorticity">Vorticity: <span id="probeVort">0</span> 1/s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="controls-bottom">
+                    <div class="time-controls">
+                        <label>Time Step:</label>
+                        <input type="range" id="timeStep" min="0.001" max="0.1" step="0.001" value="0.016" class="slider">
+                        <span id="timeStepValue">0.016</span>
+                    </div>
+                    
+                    <div class="grid-controls">
+                        <label>
+                            <input type="checkbox" id="showGrid"> Show Grid
+                        </label>
+                        <label>
+                            <input type="checkbox" id="showBoundary"> Show Boundaries
+                        </label>
+                        <label>
+                            <input type="checkbox" id="showProbe" checked> Probe Tool
+                        </label>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Color Scale Legend -->
+        <div class="color-scale" id="colorScale">
+            <div class="scale-labels">
+                <span class="scale-min">0</span>
+                <span class="scale-max">1</span>
+            </div>
+            <canvas id="colorBar" width="20" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/math.js"></script>
+    <script src="js/flows.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/simulation.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

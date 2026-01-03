@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Fluid Flow Simulation</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- MathJax for rendering equations -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>FluidSim</h2>
+            </div>
+            
+            <div class="control-group">
+                <label for="sim-type">Simulation Type</label>
+                <select id="sim-type">
+                    <option value="potential">Potential Flow (Inviscid/Irrotational)</option>
+                    <option value="viscous">Exact Viscous Solutions</option>
+                    <option value="navier">Navier-Stokes (General)</option>
+                </select>
+            </div>
+
+            <div id="controls-container">
+                <!-- Dynamic controls will be injected here -->
+            </div>
+
+            <div class="control-group">
+                <label for="visualization-type">Visualization</label>
+                <select id="visualization-type">
+                    <option value="velocity">Velocity Magnitude</option>
+                    <option value="pressure">Pressure</option>
+                    <option value="curl">Vorticity (Curl)</option>
+                    <option value="streamfunction">Stream Function</option>
+                    <option value="dye">Dye / Density</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="probe-toggle"> Enable Probe Tool
+                </label>
+            </div>
+
+            <div class="equation-display">
+                <h3>Governing Equations</h3>
+                <div id="math-container">
+                    <!-- MathJax equations go here -->
+                </div>
+                <textarea id="equation-editor" placeholder="Enter JSON parameters to override (e.g., {&quot;viscosity&quot;: 0.05})"></textarea>
+                <button id="apply-equation">Apply Changes</button>
+            </div>
+        </nav>
+
+        <main class="viewport">
+            <canvas id="sim-canvas"></canvas>
+            <div id="probe-readout" class="hidden">
+                <div class="readout-item">x: <span id="probe-x">0</span></div>
+                <div class="readout-item">y: <span id="probe-y">0</span></div>
+                <div class="readout-item">u: <span id="probe-u">0</span></div>
+                <div class="readout-item">v: <span id="probe-v">0</span></div>
+                <div class="readout-item">Val: <span id="probe-val">0</span></div>
+            </div>
+            <div class="overlay-info">
+                <span id="fps-counter">FPS: 0</span>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

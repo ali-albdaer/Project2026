@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Mechanics Interactive</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h1>Fluid Sim</h1>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="kinematics">Kinematics</button>
+                    <button class="tab-btn" data-tab="potential">Potential Flow</button>
+                    <button class="tab-btn" data-tab="navier">Navier-Stokes</button>
+                </div>
+            </div>
+
+            <div id="kinematics-controls" class="control-panel active">
+                <h2>Flow Field Definition</h2>
+                <div class="input-group">
+                    <label>u(x, y, t) = </label>
+                    <input type="text" id="u-eqn" value="Math.sin(y) + 0.5 * Math.cos(t)">
+                </div>
+                <div class="input-group">
+                    <label>v(x, y, t) = </label>
+                    <input type="text" id="v-eqn" value="Math.cos(x)">
+                </div>
+                <div class="info-box">
+                    <h3>Derived Quantities</h3>
+                    <p>Divergence ($\nabla \cdot \vec{V}$): <span id="val-div">0</span></p>
+                    <p>Vorticity ($\zeta_z$): <span id="val-vort">0</span></p>
+                    <p>Shear Strain ($\gamma_{xy}$): <span id="val-shear">0</span></p>
+                </div>
+            </div>
+
+            <div id="potential-controls" class="control-panel">
+                <h2>Potential Elements</h2>
+                <div class="elements-list" id="potential-list">
+                    <!-- Elements added here -->
+                </div>
+                <div class="add-buttons">
+                    <button onclick="addPotentialElement('uniform')">+ Uniform</button>
+                    <button onclick="addPotentialElement('source')">+ Source</button>
+                    <button onclick="addPotentialElement('vortex')">+ Vortex</button>
+                    <button onclick="addPotentialElement('doublet')">+ Doublet</button>
+                </div>
+                <div class="info-box">
+                    <p>$\nabla^2 \phi = 0$</p>
+                    <p>$\nabla^2 \psi = 0$</p>
+                </div>
+            </div>
+
+            <div id="navier-controls" class="control-panel">
+                <h2>Simulation Params</h2>
+                <div class="slider-group">
+                    <label>Viscosity ($\nu$)</label>
+                    <input type="range" id="viscosity" min="0" max="0.1" step="0.001" value="0.000">
+                </div>
+                <div class="slider-group">
+                    <label>Density ($\rho$)</label>
+                    <input type="range" id="density" min="0.1" max="2.0" step="0.1" value="1.0">
+                </div>
+                <div class="slider-group">
+                    <label>Time Step ($dt$)</label>
+                    <input type="range" id="timestep" min="0.001" max="0.1" step="0.001" value="0.016">
+                </div>
+                <div class="toggle-group">
+                    <label><input type="checkbox" id="paused"> Pause</label>
+                    <button id="reset-sim">Reset</button>
+                </div>
+                <div class="info-box">
+                    <p>Mode: <span id="ns-mode">Inviscid (Euler)</span></p>
+                </div>
+            </div>
+
+            <div class="visualization-controls">
+                <h2>Visualization</h2>
+                <div class="input-group">
+                    <label>Color Map</label>
+                    <select id="colormap">
+                        <option value="velocity">Velocity Magnitude</option>
+                        <option value="pressure">Pressure / Potential</option>
+                        <option value="curl">Vorticity (Curl)</option>
+                        <option value="divergence">Divergence</option>
+                    </select>
+                </div>
+                <div class="toggle-group">
+                    <label><input type="checkbox" id="show-streamlines" checked> Streamlines</label>
+                    <label><input type="checkbox" id="show-vectors"> Vectors</label>
+                </div>
+            </div>
+            
+            <div class="probe-panel">
+                <h2>Probe</h2>
+                <p>Pos: <span id="probe-pos">0, 0</span></p>
+                <p>Vel: <span id="probe-vel">0, 0</span></p>
+                <p>Value: <span id="probe-val">0</span></p>
+            </div>
+        </div>
+        
+        <div class="main-view">
+            <canvas id="sim-canvas"></canvas>
+            <div class="overlay-equations" id="overlay-eq">
+                <!-- MathJax or simple HTML overlay for equations -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/math_parser.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/sim_kinematics.js"></script>
+    <script src="js/sim_potential.js"></script>
+    <script src="js/sim_navierstokes.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

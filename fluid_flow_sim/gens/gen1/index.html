@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fluid Flow Sim — Real-time Interactive</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">Fluid Flow Sim</div>
+        <div class="brand__subtitle">Kinematics • Continuity • Euler/NS • Potential Flow • Viscous Exact Solutions</div>
+      </div>
+
+      <div class="topbar__controls">
+        <label class="field">
+          <span class="field__label">Mode</span>
+          <select id="modeSelect" class="select"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Visualize</span>
+          <select id="quantitySelect" class="select"></select>
+        </label>
+
+        <button id="togglePanelBtn" class="btn btn--ghost" type="button">Panel</button>
+        <button id="resetBtn" class="btn" type="button">Reset</button>
+        <button id="pauseBtn" class="btn btn--ghost" type="button">Pause</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="viewport">
+        <canvas id="canvas" width="1024" height="768"></canvas>
+        <div id="probe" class="probe" aria-hidden="true"></div>
+        <div class="hud">
+          <div class="hud__row" id="statusLine">Initializing…</div>
+          <div class="hud__row hud__row--muted">Mouse: drag to inject velocity; Shift-drag injects scalar.</div>
+        </div>
+      </section>
+
+      <aside id="panel" class="panel">
+        <div class="panel__section">
+          <div class="panel__title">Simulation</div>
+          <div class="grid2">
+            <label class="field">
+              <span class="field__label">Resolution</span>
+              <select id="resSelect" class="select">
+                <option value="96">96×96</option>
+                <option value="128" selected>128×128</option>
+                <option value="192">192×192</option>
+                <option value="256">256×256</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">Time step (dt)</span>
+              <input id="dtInput" class="input" type="number" step="0.001" min="0.001" max="0.1" value="0.016" />
+            </label>
+
+            <label class="field">
+              <span class="field__label">Viscosity (ν)</span>
+              <input id="viscInput" class="input" type="number" step="0.0001" min="0" value="0.001" />
+            </label>
+
+            <label class="field">
+              <span class="field__label">Diffusion (κ)</span>
+              <input id="diffInput" class="input" type="number" step="0.0001" min="0" value="0.0005" />
+            </label>
+
+            <label class="field">
+              <span class="field__label">Boundaries</span>
+              <select id="boundarySelect" class="select">
+                <option value="walls" selected>Walls</option>
+                <option value="periodic">Periodic</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">Colormap</span>
+              <select id="cmapSelect" class="select">
+                <option value="turbo" selected>Turbo</option>
+                <option value="viridis">Viridis</option>
+                <option value="magma">Magma</option>
+                <option value="icefire">IceFire</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">Show vectors</span>
+              <select id="vectorsSelect" class="select">
+                <option value="off" selected>Off</option>
+                <option value="on">On</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field__label">Auto scale</span>
+              <select id="autoscaleSelect" class="select">
+                <option value="on" selected>On</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel__section">
+          <div class="panel__title">Equations (live)</div>
+          <div class="panel__hint">
+            Expressions use <span class="mono">x, y, t</span> in domain [-1,1]. Also available: <span class="mono">r, theta, pi</span>.
+            Use <span class="mono">sin(), cos(), exp(), sqrt()</span>, etc.
+          </div>
+
+          <div class="eq">
+            <div class="eq__row">
+              <label class="field">
+                <span class="field__label">u(x,y,t)</span>
+                <input id="exprU" class="input input--mono" value="0" />
+              </label>
+              <label class="field">
+                <span class="field__label">v(x,y,t)</span>
+                <input id="exprV" class="input input--mono" value="0" />
+              </label>
+            </div>
+
+            <div class="eq__row">
+              <label class="field">
+                <span class="field__label">density ρ(x,y,t)</span>
+                <input id="exprRho" class="input input--mono" value="0" />
+              </label>
+              <label class="field">
+                <span class="field__label">temp T(x,y,t)</span>
+                <input id="exprTemp" class="input input--mono" value="0" />
+              </label>
+            </div>
+
+            <div class="eq__row">
+              <label class="field">
+                <span class="field__label">body force fx(x,y,t)</span>
+                <input id="exprFx" class="input input--mono" value="0" />
+              </label>
+              <label class="field">
+                <span class="field__label">body force fy(x,y,t)</span>
+                <input id="exprFy" class="input input--mono" value="0" />
+              </label>
+            </div>
+
+            <div class="eq__row">
+              <label class="field">
+                <span class="field__label">continuous forcing</span>
+                <select id="continuousSelect" class="select">
+                  <option value="off" selected>Off</option>
+                  <option value="on">On</option>
+                </select>
+              </label>
+
+              <button id="applyEqBtn" class="btn" type="button">Apply to fields</button>
+            </div>
+
+            <div id="eqStatus" class="eq__status">Ready.</div>
+          </div>
+        </div>
+
+        <div class="panel__section" id="modeParamsSection">
+          <div class="panel__title">Mode parameters</div>
+          <div id="modeParams" class="modeParams"></div>
+        </div>
+
+        <div class="panel__section">
+          <div class="panel__title">Concept map</div>
+          <div class="panel__hint">
+            Visual quantities cover: divergence (continuity), vorticity (rotation), shear/dilatation (strain), pressure projection (incompressible NS), streamfunction ψ, potential φ, Bernoulli energy, and exact viscous profiles.
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <div>Tip: switch Mode to Potential Flow or Viscous Exact Solutions for closed-form fields; use Navier–Stokes for full time-dependent dynamics.</div>
+    </footer>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

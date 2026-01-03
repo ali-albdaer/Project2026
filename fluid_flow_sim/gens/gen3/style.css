@@ -1,0 +1,176 @@
+:root {
+    --bg-color: #1e1e1e;
+    --panel-bg: #252526;
+    --text-color: #d4d4d4;
+    --accent-color: #007acc;
+    --border-color: #3e3e42;
+    --input-bg: #3c3c3c;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+.sidebar {
+    width: 300px;
+    background-color: var(--panel-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+.main-view {
+    flex: 1;
+    position: relative;
+    background-color: #000;
+    overflow: hidden;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+h1, h2, h3 {
+    margin: 0 0 10px 0;
+    font-weight: normal;
+}
+
+h1 { font-size: 1.2em; color: var(--accent-color); }
+h2 { font-size: 1em; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; margin-top: 15px; }
+h3 { font-size: 0.9em; color: #aaa; }
+
+.tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.tab-btn {
+    flex: 1;
+    background: var(--input-bg);
+    border: none;
+    color: var(--text-color);
+    padding: 8px 5px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+
+.tab-btn.active {
+    background: var(--accent-color);
+    color: white;
+}
+
+.control-panel {
+    display: none;
+}
+
+.control-panel.active {
+    display: block;
+}
+
+.input-group, .slider-group, .toggle-group {
+    margin-bottom: 10px;
+}
+
+label {
+    display: block;
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+
+input[type="text"], select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+input[type="range"] {
+    width: 100%;
+}
+
+.info-box {
+    background: rgba(0,0,0,0.2);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    margin-top: 10px;
+}
+
+.info-box p {
+    margin: 3px 0;
+}
+
+.elements-list {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.element-item {
+    padding: 5px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85em;
+}
+
+.remove-btn {
+    background: transparent;
+    border: none;
+    color: #ff4444;
+    cursor: pointer;
+}
+
+.add-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+}
+
+.add-buttons button {
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 5px;
+    cursor: pointer;
+}
+
+.add-buttons button:hover {
+    background: #444;
+}
+
+.probe-panel {
+    margin-top: auto;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+.overlay-equations {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: rgba(255,255,255,0.7);
+    pointer-events: none;
+    font-size: 1.2em;
+}
