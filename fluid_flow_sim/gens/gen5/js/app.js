@@ -12,8 +12,16 @@ class App {
         this.solver = null; // Lazy init
         
         this.colormap = null;
+        this.zoom = 1.0;
+        this.showGrid = false;
+        this.darkMode = true;
+
         this.initUI();
         this.initEvents();
+        
+        // Initial settings
+        this.updateColormap(document.getElementById('color-palette').value);
+        this.toggleDarkMode(this.darkMode);
         
         this.lastTime = Date.now();
         this.loop = this.loop.bind(this);
@@ -57,6 +65,9 @@ class App {
         document.getElementById('show-potential').addEventListener('change', (e) => {
             this.potential.config.showPotential = e.target.checked;
         });
+        document.getElementById('show-velocity').addEventListener('change', (e) => {
+            this.potential.config.showVelocity = e.target.checked;
+        });
         document.getElementById('line-density').addEventListener('input', (e) => {
             this.potential.config.density = parseInt(e.target.value);
         });
@@ -87,6 +98,23 @@ class App {
         document.getElementById('color-palette').addEventListener('change', (e) => {
             this.updateColormap(e.target.value);
         });
+        document.getElementById('show-grid').addEventListener('change', (e) => {
+            this.showGrid = e.target.checked;
+            if (this.potential) this.potential.config.showGrid = this.showGrid;
+            // NS grid handled in render
+        });
+        document.getElementById('dark-mode').addEventListener('change', (e) => {
+            this.toggleDarkMode(e.target.checked);
+        });
+    }
+
+    toggleDarkMode(enabled) {
+        this.darkMode = enabled;
+        if (enabled) {
+            document.body.classList.remove('light-mode');
+        } else {
+            document.body.classList.add('light-mode');
+        }
     }
 
     updateElementsList() {
@@ -139,13 +167,35 @@ class App {
     }
 
     updateColormap(name) {
+        this.colormapName = name;
         if (this.solver) {
             this.colormap = Utils.createColormapTexture(this.solver.gl, name);
+        }
+        if (this.potential) {
+            this.potential.setColormap(name);
         }
     }
 
     initEvents() {
         window.addEventListener('resize', () => this.resize());
+        
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'h') {
+                document.getElementById('ui-layer').classList.toggle('hidden');
+            }
+        });
+
+        // Zoom
+        this.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            this.zoom *= delta;
+            this.zoom = Math.max(0.1, Math.min(this.zoom, 10.0));
+            
+            if (this.potential) this.potential.setZoom(this.zoom);
+            if (this.solver) this.solver.setZoom(this.zoom);
+        }, { passive: false });
 
         let isDragging = false;
         let lastX = 0;
@@ -215,7 +265,7 @@ class App {
         } else if (this.mode === 'navier' && this.solver) {
             this.solver.step(this.solver.config.dt); // Use fixed time step for stability
             const quantity = document.getElementById('ns-quantity').value;
-            this.solver.render(this.colormap, quantity);
+            this.solver.render(this.colormap, quantity, this.showGrid);
         }
 
         requestAnimationFrame(this.loop);

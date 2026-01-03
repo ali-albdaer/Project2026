@@ -26,6 +26,8 @@ export const Utils = {
         // t is 0..1
         if (name === 'viridis') return Utils.viridis(t);
         if (name === 'magma') return Utils.magma(t);
+        if (name === 'inferno') return Utils.inferno(t);
+        if (name === 'plasma') return Utils.plasma(t);
         if (name === 'grayscale') return [t, t, t];
         return Utils.viridis(t);
     },
@@ -57,8 +59,26 @@ export const Utils = {
         // Rough approximation
         return [
             t,
-            t * t,
+            t * t * 0.2 + 0.1,
             t * t * t * 0.5 + 0.5 * t
+        ];
+    },
+
+    inferno: (t) => {
+        // Black -> Red -> Yellow
+        return [
+            t,
+            t * t * 0.8,
+            t * t * t * 0.2
+        ];
+    },
+
+    plasma: (t) => {
+        // Blue -> Red -> Yellow
+        return [
+            t,
+            0.1 + t * 0.8,
+            0.5 + t * 0.5
         ];
     },
 

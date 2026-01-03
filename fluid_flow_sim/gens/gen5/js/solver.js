@@ -22,15 +22,20 @@ export class FluidSolver {
             radius: 0.02, // Splat radius
             force: 1.0
         };
+        
+        this.zoom = 1.0;
 
         this.initShaders();
         this.initBuffers();
     }
 
+    setZoom(z) {
+        this.zoom = z;
+    }
+
     resize(w, h) {
         this.width = w;
         this.height = h;
-        // Re-init textures if needed, or just viewport
         this.gl.viewport(0, 0, this.width, this.height);
     }
 
@@ -135,12 +140,59 @@ export class FluidSolver {
             }
         `;
 
+        const displayShader = `
+            precision highp float;
+            varying vec2 v_uv;
+            uniform sampler2D u_texture;
+            uniform sampler2D u_colormap;
+            uniform float u_min;
+            uniform float u_max;
+            uniform int u_type; // 0: vector, 1: scalar
+            uniform float u_zoom;
+            uniform bool u_grid;
+            uniform float u_aspect;
+            
+            void main() {
+                // Zoom centered
+                vec2 uv = (v_uv - 0.5) / u_zoom + 0.5;
+                
+                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+                    gl_FragColor = vec4(0.1, 0.1, 0.1, 1.0);
+                    return;
+                }
+
+                vec4 data = texture2D(u_texture, uv);
+                float val = 0.0;
+                if (u_type == 0) {
+                    val = length(data.xy);
+                } else {
+                    val = data.x;
+                }
+                
+                // Map val to 0-1
+                float t = clamp((val - u_min) / (u_max - u_min), 0.0, 1.0);
+                vec4 color = texture2D(u_colormap, vec2(t, 0.5));
+                
+                // Grid
+                if (u_grid) {
+                    float gridSize = 0.1 * u_zoom;
+                    float lineThickness = 0.002 * u_zoom;
+                    if (mod(uv.x * u_aspect, gridSize) < lineThickness || mod(uv.y, gridSize) < lineThickness) {
+                        color.rgb += 0.2;
+                    }
+                }
+
+                gl_FragColor = vec4(color.rgb, 1.0);
+            }
+        `;
+
         this.programs = {
             advection: this.createProgram(baseVertex, advectionShader),
             divergence: this.createProgram(baseVertex, divergenceShader),
             pressure: this.createProgram(baseVertex, pressureShader),
             gradientSubtract: this.createProgram(baseVertex, gradientSubtractShader),
-            splat: this.createProgram(baseVertex, splatShader)
+            splat: this.createProgram(baseVertex, splatShader),
+            display: this.createProgram(baseVertex, displayShader)
         };
     }
 
@@ -308,26 +360,11 @@ export class FluidSolver {
         this.velocity.swap();
     }
 
-    render(colormapTexture, quantity) {
+    render(colormapTexture, quantity, showGrid) {
         const gl = this.gl;
         gl.viewport(0, 0, this.width, this.height);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         
-        // Use the display shader from index.html (need to compile it here or grab it)
-        // I'll just recompile it here for safety
-        if (!this.programs.display) {
-            const displayFs = document.getElementById('frag-display').textContent;
-            const baseVs = `
-                attribute vec2 a_position;
-                varying vec2 v_uv;
-                void main() {
-                    v_uv = a_position * 0.5 + 0.5;
-                    gl_Position = vec4(a_position, 0, 1);
-                }
-            `;
-            this.programs.display = this.createProgram(baseVs, displayFs);
-        }
-
         let tex, type, minVal, maxVal;
         if (quantity === 'pressure') {
             tex = this.pressure.read.texture;
@@ -351,11 +388,25 @@ export class FluidSolver {
             u_colormap: { texture: colormapTexture, unit: 1 },
             u_min: minVal,
             u_max: maxVal,
-            u_type: type
+            u_type: type,
+            u_zoom: this.zoom,
+            u_grid: showGrid,
+            u_aspect: this.width / this.height
         });
     }
 
     addForce(x, y, dx, dy) {
-        this.splatData = { x, y, dx: dx * this.config.force, dy: dy * this.config.force };
+        // Adjust for zoom
+        // x, y are 0..1 screen coords
+        // We need to map them to simulation coords
+        // uv = (screen_uv - 0.5) / zoom + 0.5
+        
+        const cx = 0.5;
+        const cy = 0.5;
+        
+        const simX = (x - cx) / this.zoom + cx;
+        const simY = (y - cy) / this.zoom + cy;
+
+        this.splatData = { x: simX, y: simY, dx: dx * this.config.force, dy: dy * this.config.force };
     }
 }

@@ -8,15 +8,28 @@ export class PotentialFlow {
         this.width = canvas.width;
         this.height = canvas.height;
         this.scale = 50; // pixels per unit
+        this.baseScale = 50;
+        this.zoom = 1.0;
         this.offsetX = this.width / 2;
         this.offsetY = this.height / 2;
+        this.colormapName = 'viridis';
         
         this.config = {
             showStreamlines: true,
             showPotential: false,
             showVelocity: false,
+            showGrid: false,
             density: 40
         };
+    }
+
+    setZoom(z) {
+        this.zoom = z;
+        this.scale = this.baseScale * z;
+    }
+
+    setColormap(name) {
+        this.colormapName = name;
     }
 
     resize(w, h) {
@@ -66,21 +79,21 @@ export class PotentialFlow {
         if (name === 'uniform') {
             this.addElement('uniform', { U: 1, alpha: 0 });
         } else if (name === 'source_sink') {
-            this.addElement('uniform', { U: 0.5 });
-            this.addElement('source', { m: 200, x: -2, y: 0 });
-            this.addElement('source', { m: -200, x: 2, y: 0 }); // Sink is negative source
+            // this.addElement('uniform', { U: 0.5 }); // Removed uniform to make source/sink clearer
+            this.addElement('source', { m: 300, x: -2, y: 0 });
+            this.addElement('source', { m: -300, x: 2, y: 0 }); // Sink is negative source
         } else if (name === 'cylinder') {
             // Uniform + Doublet
             this.addElement('uniform', { U: 1 });
-            this.addElement('doublet', { kappa: 200, x: 0, y: 0 }); // R = sqrt(kappa/U)
+            this.addElement('doublet', { kappa: 400, x: 0, y: 0 }); // R = sqrt(kappa/U) = 20
         } else if (name === 'rotating_cylinder') {
             this.addElement('uniform', { U: 1 });
-            this.addElement('doublet', { kappa: 200, x: 0, y: 0 });
-            this.addElement('vortex', { gamma: 300, x: 0, y: 0 });
+            this.addElement('doublet', { kappa: 400, x: 0, y: 0 });
+            this.addElement('vortex', { gamma: 500, x: 0, y: 0 });
         } else if (name === 'rankine') {
             this.addElement('uniform', { U: 1 });
-            this.addElement('source', { m: 150, x: -2, y: 0 });
-            this.addElement('source', { m: -150, x: 2, y: 0 });
+            this.addElement('source', { m: 200, x: -2, y: 0 });
+            this.addElement('source', { m: -200, x: 2, y: 0 });
         }
     }
 
@@ -158,44 +171,75 @@ export class PotentialFlow {
     draw() {
         this.ctx.clearRect(0, 0, this.width, this.height);
         
-        // We will draw contours by sampling a grid
-        // A simple way to draw streamlines is to check for sign changes or bands of psi
-        // Or use a marching squares algorithm.
-        // For "real-time", a simple banding approach is fast and effective.
-        // sin(frequency * psi) > 0 ? draw : skip
-
-        const step = 4; // Pixel step
+        const step = 2; // Finer step for better visuals
         const density = this.config.density;
         
         const imgData = this.ctx.createImageData(this.width, this.height);
         const data = imgData.data;
 
+        // Pre-calculate colormap if needed
+        // For simplicity, we'll compute color on the fly or use a simple lookup
+        // But since we have Utils.getColormapColor, we can use that.
+
         for (let y = 0; y < this.height; y += step) {
             for (let x = 0; x < this.width; x += step) {
                 const pot = this.getPotential(x, y);
-                
-                let val = 0;
-                if (this.config.showStreamlines) {
-                    // Use a sine wave to create bands
-                    val += Math.sin(pot.psi * (density / 100));
-                }
-                if (this.config.showPotential) {
-                    val += Math.sin(pot.phi * (density / 100));
+                let velMag = 0;
+                if (this.config.showVelocity) {
+                    const vel = this.getVelocity(x, y);
+                    velMag = vel.mag;
                 }
 
-                // Simple thresholding for lines
-                const isLine = Math.abs(val) < 0.1; 
-                
-                if (isLine) {
+                let r = 0, g = 0, b = 0, a = 0;
+
+                // Velocity Map Background
+                if (this.config.showVelocity) {
+                    // Map magnitude to 0-1 roughly. Assume max speed around 2-3 usually
+                    const t = Math.min(velMag / 3.0, 1.0);
+                    const color = Utils.getColormapColor(this.colormapName, t);
+                    r = color[0] * 255;
+                    g = color[1] * 255;
+                    b = color[2] * 255;
+                    a = 255;
+                }
+
+                // Streamlines / Potential Lines
+                let isLine = false;
+                if (this.config.showStreamlines) {
+                    // Use a sine wave to create bands
+                    // Sharper lines: abs(sin(...)) < threshold
+                    const val = Math.sin(pot.psi * (density / 100));
+                    if (Math.abs(val) < 0.15) {
+                        isLine = true;
+                        // Mix line color
+                        r = 255; g = 255; b = 255; a = 255;
+                    }
+                }
+                if (this.config.showPotential) {
+                    const val = Math.sin(pot.phi * (density / 100));
+                    if (Math.abs(val) < 0.15) {
+                        isLine = true;
+                        r = 255; g = 200; b = 100; a = 255;
+                    }
+                }
+
+                // Grid
+                if (this.config.showGrid) {
+                    if (x % 50 < 2 || y % 50 < 2) {
+                        r += 50; g += 50; b += 50; a = 255;
+                    }
+                }
+
+                if (a > 0) {
                     // Fill the block
                     for (let dy = 0; dy < step; dy++) {
                         for (let dx = 0; dx < step; dx++) {
                             if (x+dx < this.width && y+dy < this.height) {
                                 const idx = ((y+dy) * this.width + (x+dx)) * 4;
-                                data[idx] = 255;     // R
-                                data[idx+1] = 255;   // G
-                                data[idx+2] = 255;   // B
-                                data[idx+3] = 255;   // A
+                                data[idx] = r;
+                                data[idx+1] = g;
+                                data[idx+2] = b;
+                                data[idx+3] = a;
                             }
                         }
                     }
@@ -206,8 +250,9 @@ export class PotentialFlow {
         this.ctx.putImageData(imgData, 0, 0);
 
         // Draw elements
-        this.ctx.strokeStyle = '#ff0000';
-        this.ctx.fillStyle = '#ff0000';
+        this.ctx.strokeStyle = '#ff4444';
+        this.ctx.fillStyle = '#ff4444';
+        this.ctx.lineWidth = 2;
         for (const el of this.elements) {
             const sx = el.x * this.scale + this.offsetX;
             const sy = -el.y * this.scale + this.offsetY;
@@ -220,7 +265,7 @@ export class PotentialFlow {
                 // Draw arrow
                 this.ctx.beginPath();
                 this.ctx.moveTo(sx, sy);
-                this.ctx.lineTo(sx + 20 * Math.cos(-el.alpha), sy + 20 * Math.sin(-el.alpha));
+                this.ctx.lineTo(sx + 30 * Math.cos(-el.alpha), sy + 30 * Math.sin(-el.alpha));
                 this.ctx.stroke();
             }
         }
