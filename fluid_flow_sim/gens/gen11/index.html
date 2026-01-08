@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Flow Simulation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Canvas -->
+        <canvas id="simulation-canvas"></canvas>
+        
+        <!-- Probe Display (floating) -->
+        <div id="probe-display" class="hidden">
+            <div class="probe-title">Flow Properties</div>
+            <div class="probe-content"></div>
+        </div>
+
+        <!-- Left Side Menu - Flow Builder -->
+        <aside id="left-menu" class="side-menu">
+            <div class="menu-header">
+                <h2>Flow Builder</h2>
+                <button id="toggle-left-menu" class="toggle-btn" title="Toggle Menu [L]">◀</button>
+            </div>
+            
+            <div class="menu-content">
+                <!-- Preset Scenarios -->
+                <section class="menu-section">
+                    <h3>Presets</h3>
+                    <select id="preset-select">
+                        <option value="none">-- Select Scenario --</option>
+                        <option value="uniform">Uniform Flow</option>
+                        <option value="source">Point Source</option>
+                        <option value="sink">Point Sink</option>
+                        <option value="doublet">Doublet</option>
+                        <option value="vortex">Irrotational Vortex</option>
+                        <option value="half-body">Half-Body (Rankine)</option>
+                        <option value="rankine-oval">Rankine Oval</option>
+                        <option value="cylinder">Flow Over Cylinder</option>
+                        <option value="rotating-cylinder">Rotating Cylinder</option>
+                        <option value="source-sink-pair">Source-Sink Pair</option>
+                    </select>
+                    <button id="load-preset" class="btn primary">Load Preset</button>
+                </section>
+
+                <!-- Add Flow Element -->
+                <section class="menu-section">
+                    <h3>Add Element</h3>
+                    <div class="element-type-selector">
+                        <button class="element-btn" data-type="uniform" title="Add Uniform Flow [U]">
+                            <span class="icon">→</span>
+                            <span class="label">Uniform</span>
+                        </button>
+                        <button class="element-btn" data-type="source" title="Add Source [S]">
+                            <span class="icon">⊕</span>
+                            <span class="label">Source</span>
+                        </button>
+                        <button class="element-btn" data-type="sink" title="Add Sink [K]">
+                            <span class="icon">⊖</span>
+                            <span class="label">Sink</span>
+                        </button>
+                        <button class="element-btn" data-type="doublet" title="Add Doublet [D]">
+                            <span class="icon">◐</span>
+                            <span class="label">Doublet</span>
+                        </button>
+                        <button class="element-btn" data-type="vortex" title="Add Vortex [V]">
+                            <span class="icon">↻</span>
+                            <span class="label">Vortex</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Active Elements List -->
+                <section class="menu-section">
+                    <h3>Active Elements</h3>
+                    <div id="active-elements-list" class="elements-list">
+                        <div class="empty-state">No elements added</div>
+                    </div>
+                    <button id="clear-all-elements" class="btn danger" title="Clear All [C]">Clear All</button>
+                </section>
+            </div>
+        </aside>
+
+        <!-- Right Side Menu - Settings -->
+        <aside id="right-menu" class="side-menu">
+            <div class="menu-header">
+                <button id="toggle-right-menu" class="toggle-btn" title="Toggle Menu [R]">▶</button>
+                <h2>Settings</h2>
+            </div>
+            
+            <div class="menu-content">
+                <!-- Visualization Options -->
+                <section class="menu-section">
+                    <h3>Visualization</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" title="Show Particles [1]">
+                            <input type="checkbox" id="show-particles" checked>
+                            <span>Particles</span>
+                        </label>
+                        <label class="checkbox-label" title="Show Velocity Vectors [2]">
+                            <input type="checkbox" id="show-velocity-vectors" checked>
+                            <span>Velocity Vectors</span>
+                        </label>
+                        <label class="checkbox-label" title="Show Streamlines [3]">
+                            <input type="checkbox" id="show-streamlines">
+                            <span>Streamlines</span>
+                        </label>
+                        <label class="checkbox-label" title="Show Streaklines [4]">
+                            <input type="checkbox" id="show-streaklines">
+                            <span>Streaklines</span>
+                        </label>
+                        <label class="checkbox-label" title="Static Velocity Field [5]">
+                            <input type="checkbox" id="show-static-vectors">
+                            <span>Static Velocity Field</span>
+                        </label>
+                    </div>
+                    
+                    <div class="sub-option">
+                        <label>Vector Display Mode</label>
+                        <select id="vector-display-mode">
+                            <option value="length">Length = Magnitude</option>
+                            <option value="color">Color = Magnitude</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- Color Gradient -->
+                <section class="menu-section">
+                    <h3>Color Mapping</h3>
+                    <div class="control-group">
+                        <label>Quantity</label>
+                        <select id="gradient-quantity">
+                            <option value="none">None</option>
+                            <option value="velocity">Velocity Magnitude</option>
+                            <option value="pressure">Pressure</option>
+                            <option value="density">Density</option>
+                            <option value="temperature">Temperature</option>
+                            <option value="vorticity">Vorticity</option>
+                            <option value="stream-function">Stream Function</option>
+                            <option value="potential">Velocity Potential</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Palette</label>
+                        <select id="color-palette">
+                            <option value="viridis">Viridis</option>
+                            <option value="jet">Jet</option>
+                            <option value="magma">Magma</option>
+                            <option value="plasma">Plasma</option>
+                            <option value="inferno">Inferno</option>
+                            <option value="coolwarm">Cool-Warm</option>
+                            <option value="grayscale">Grayscale</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- Particle Settings -->
+                <section class="menu-section">
+                    <h3>Particles</h3>
+                    <div class="slider-group">
+                        <label>Max Particles: <span id="particle-count-value">2000</span></label>
+                        <input type="range" id="particle-count" min="100" max="10000" value="2000" step="100">
+                    </div>
+                    <div class="slider-group">
+                        <label>Particle Size: <span id="particle-size-value">2</span></label>
+                        <input type="range" id="particle-size" min="1" max="10" value="2" step="0.5">
+                    </div>
+                    <div class="slider-group">
+                        <label>Opacity: <span id="particle-opacity-value">0.8</span></label>
+                        <input type="range" id="particle-opacity" min="0.1" max="1" value="0.8" step="0.05">
+                    </div>
+                </section>
+
+                <!-- Lines Settings -->
+                <section class="menu-section">
+                    <h3>Lines</h3>
+                    <div class="slider-group">
+                        <label>Streamline Density: <span id="streamline-density-value">20</span></label>
+                        <input type="range" id="streamline-density" min="5" max="50" value="20" step="1">
+                    </div>
+                    <div class="slider-group">
+                        <label>Streamline Opacity: <span id="streamline-opacity-value">0.6</span></label>
+                        <input type="range" id="streamline-opacity" min="0.1" max="1" value="0.6" step="0.05">
+                    </div>
+                    <div class="slider-group">
+                        <label>Streakline Length: <span id="streakline-length-value">50</span></label>
+                        <input type="range" id="streakline-length" min="10" max="200" value="50" step="5">
+                    </div>
+                </section>
+
+                <!-- Physics Settings -->
+                <section class="menu-section">
+                    <h3>Physics (Navier-Stokes)</h3>
+                    <div class="slider-group">
+                        <label>Viscosity (ν): <span id="viscosity-value">0.01</span></label>
+                        <input type="range" id="viscosity" min="0" max="0.5" value="0.01" step="0.005">
+                    </div>
+                    <div class="slider-group">
+                        <label>Temperature: <span id="temperature-value">300</span>K</label>
+                        <input type="range" id="temperature" min="200" max="500" value="300" step="10">
+                    </div>
+                    <div class="slider-group">
+                        <label>Density (ρ): <span id="density-value">1.0</span></label>
+                        <input type="range" id="density" min="0.1" max="5" value="1.0" step="0.1">
+                    </div>
+                    <div class="slider-group">
+                        <label>Time Scale: <span id="time-scale-value">1.0</span>x</label>
+                        <input type="range" id="time-scale" min="0.1" max="3" value="1.0" step="0.1">
+                    </div>
+                </section>
+
+                <!-- Boundary Settings -->
+                <section class="menu-section">
+                    <h3>Boundaries</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" title="Dynamic Boundaries [B]">
+                            <input type="checkbox" id="dynamic-boundaries" checked>
+                            <span>Dynamic (Screen Edge)</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="periodic-boundaries">
+                            <span>Periodic Wrapping</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="conserve-particles" checked>
+                            <span>Conserve Particles</span>
+                        </label>
+                    </div>
+                    <div class="slider-group" id="boundary-size-group">
+                        <label>Map Size: <span id="boundary-size-value">2000</span></label>
+                        <input type="range" id="boundary-size" min="500" max="5000" value="2000" step="100" disabled>
+                    </div>
+                    <div class="slider-group" id="particle-lifespan-group">
+                        <label>Particle Lifespan: <span id="particle-lifespan-value">∞</span></label>
+                        <input type="range" id="particle-lifespan" min="1" max="30" value="30" step="1" disabled>
+                    </div>
+                </section>
+
+                <!-- Probe Tool -->
+                <section class="menu-section">
+                    <h3>Probe Tool</h3>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label" title="Enable Probe [P]">
+                            <input type="checkbox" id="enable-probe">
+                            <span>Enable Probe</span>
+                        </label>
+                    </div>
+                    <div class="control-group">
+                        <label>Display Quantities</label>
+                        <select id="probe-quantities" multiple>
+                            <option value="position" selected>Position (x, y)</option>
+                            <option value="velocity" selected>Velocity (u, v)</option>
+                            <option value="speed" selected>Speed |V|</option>
+                            <option value="pressure" selected>Pressure</option>
+                            <option value="stream-function" selected>Stream Function (ψ)</option>
+                            <option value="potential" selected>Velocity Potential (φ)</option>
+                            <option value="vorticity">Vorticity (ω)</option>
+                            <option value="density">Density</option>
+                            <option value="temperature">Temperature</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- View Controls -->
+                <section class="menu-section">
+                    <h3>View</h3>
+                    <button id="reset-view" class="btn" title="Reset View [Home]">Reset View</button>
+                    <button id="toggle-ui" class="btn" title="Hide UI [H]">Hide UI</button>
+                    <div class="zoom-info">
+                        <span>Zoom: <span id="zoom-level">100</span>%</span>
+                        <span>Pan: <span id="pan-position">0, 0</span></span>
+                    </div>
+                </section>
+            </div>
+        </aside>
+
+        <!-- Element Editor Modal -->
+        <div id="element-editor-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="editor-title">Edit Element</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body" id="editor-body">
+                    <!-- Dynamic content based on element type -->
+                </div>
+                <div class="modal-footer">
+                    <button id="editor-cancel" class="btn">Cancel</button>
+                    <button id="editor-save" class="btn primary">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Help -->
+        <div id="shortcuts-help" class="hidden">
+            <div class="shortcuts-content">
+                <h3>Keyboard Shortcuts</h3>
+                <div class="shortcuts-grid">
+                    <div><kbd>H</kbd> Hide/Show UI</div>
+                    <div><kbd>L</kbd> Toggle Left Menu</div>
+                    <div><kbd>R</kbd> Toggle Right Menu</div>
+                    <div><kbd>P</kbd> Toggle Probe</div>
+                    <div><kbd>Space</kbd> Pause/Resume</div>
+                    <div><kbd>U</kbd> Add Uniform Flow</div>
+                    <div><kbd>S</kbd> Add Source</div>
+                    <div><kbd>K</kbd> Add Sink</div>
+                    <div><kbd>D</kbd> Add Doublet</div>
+                    <div><kbd>V</kbd> Add Vortex</div>
+                    <div><kbd>C</kbd> Clear All</div>
+                    <div><kbd>1-5</kbd> Toggle Visualizations</div>
+                    <div><kbd>B</kbd> Toggle Dynamic Bounds</div>
+                    <div><kbd>Home</kbd> Reset View</div>
+                    <div><kbd>?</kbd> Show/Hide Shortcuts</div>
+                    <div><kbd>Scroll</kbd> Zoom In/Out</div>
+                    <div><kbd>Drag</kbd> Pan View</div>
+                </div>
+                <button id="close-shortcuts" class="btn">Close</button>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <span id="fps-counter">FPS: 60</span>
+            <span id="particle-counter">Particles: 0</span>
+            <span id="sim-status">Running</span>
+            <button id="pause-btn" title="Pause/Resume [Space]">⏸</button>
+            <button id="help-btn" title="Shortcuts [?]">?</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
