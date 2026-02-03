@@ -3,3 +3,4 @@ node_modules/
 /local
 *.local.*
 notes.txt
+prompt.md
