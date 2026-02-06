@@ -5,3 +5,6 @@ node_modules/
 *.local.*
 notes.txt
 prompt.md
+/target
+/dist
+/build
