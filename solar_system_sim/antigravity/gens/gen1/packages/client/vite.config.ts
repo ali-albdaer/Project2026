@@ -1,0 +1,17 @@
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+    root: '.',
+    publicDir: 'public',
+    build: {
+        outDir: 'dist',
+        target: 'esnext',
+    },
+    server: {
+        port: 3000,
+    },
+    assetsInclude: ['**/*.wasm'],
+    optimizeDeps: {
+        exclude: ['./src/wasm/physics_core.js'],
+    },
+});
