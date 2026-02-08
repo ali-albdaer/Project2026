@@ -6,10 +6,12 @@
 use crate::body::{Body, BodyId};
 use crate::collision::process_collisions;
 use crate::force::{compute_accelerations_direct, compute_total_energy};
-use crate::integrator::{step, IntegratorConfig};
+use crate::integrator::{step, IntegratorConfig, IntegratorType};
 use crate::octree::compute_accelerations_barnes_hut;
 use crate::prng::Pcg32;
 use crate::snapshot::Snapshot;
+use crate::force::{compute_accelerations_direct_from_positions, gravitational_acceleration};
+use crate::vector::Vec3;
 
 /// Force calculation method
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +43,9 @@ pub struct SimulationConfig {
     
     /// Threshold for auto-switching to Barnes-Hut
     pub barnes_hut_threshold: usize,
+
+    /// Close encounter configuration
+    pub close_encounter: CloseEncounterConfig,
 }
 
 impl Default for SimulationConfig {
@@ -50,6 +55,39 @@ impl Default for SimulationConfig {
             force_method: ForceMethod::Direct,
             enable_collisions: true,
             barnes_hut_threshold: 50,
+            close_encounter: CloseEncounterConfig::default(),
+        }
+    }
+}
+
+/// Close encounter switching settings
+#[derive(Debug, Clone, Copy)]
+pub struct CloseEncounterConfig {
+    pub enabled: bool,
+    pub enter_hill_ratio: f64,
+    pub exit_hill_ratio: f64,
+    pub enter_acc_ratio: f64,
+    pub energy_error_threshold: f64,
+    pub close_integrator: IntegratorType,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CloseEncounterCandidate {
+    primary: BodyId,
+    secondary: BodyId,
+    eta: f64,
+    acc_ratio: f64,
+}
+
+impl Default for CloseEncounterConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            enter_hill_ratio: 3.0,
+            exit_hill_ratio: 6.0,
+            enter_acc_ratio: 0.2,
+            energy_error_threshold: 1e-3,
+            close_integrator: IntegratorType::RK45,
         }
     }
 }
@@ -80,6 +118,11 @@ pub struct Simulation {
     
     /// Whether accelerations need initialization
     needs_init: bool,
+
+    /// Close encounter state
+    close_encounter_active: bool,
+    close_checkpoint: Option<Snapshot>,
+    close_checkpoint_energy: f64,
 }
 
 impl Simulation {
@@ -94,6 +137,9 @@ impl Simulation {
             sequence: 0,
             next_id: 0,
             needs_init: true,
+            close_encounter_active: false,
+            close_checkpoint: None,
+            close_checkpoint_energy: 0.0,
         }
     }
 
@@ -196,17 +242,189 @@ impl Simulation {
             self.needs_init = false;
         }
 
+        self.update_close_encounter_state();
+
+        let mut integrator = self.config.integrator;
+        if self.close_encounter_active {
+            integrator.method = self.config.close_encounter.close_integrator;
+        }
+
         // Advance physics
-        step(&mut self.bodies, &self.config.integrator);
+        let dt_advanced = step(&mut self.bodies, &integrator);
         
         // Handle collisions
         if self.config.enable_collisions {
             process_collisions(&mut self.bodies);
         }
 
-        self.time += self.config.integrator.dt;
+        if self.close_encounter_active {
+            let energy = self.total_energy();
+            if self.close_checkpoint.is_some() {
+                let base = self.close_checkpoint_energy.abs().max(1.0);
+                let error = ((energy - self.close_checkpoint_energy) / base).abs();
+                if error > self.config.close_encounter.energy_error_threshold {
+                    if let Some(snapshot) = self.close_checkpoint.take() {
+                        let _ = self.restore(snapshot);
+                        self.close_encounter_active = false;
+                        println!(
+                            "[sim] Close-encounter integrator reverted (energy error {:.4}).",
+                            error
+                        );
+                        return;
+                    }
+                }
+            }
+        }
+
+        self.time += dt_advanced;
         self.tick += 1;
         self.sequence += 1;
+    }
+
+    fn update_close_encounter_state(&mut self) {
+        if !self.config.close_encounter.enabled {
+            self.close_encounter_active = false;
+            self.close_checkpoint = None;
+            return;
+        }
+
+        let candidate = self.compute_close_encounter_candidate();
+
+        if self.close_encounter_active {
+            if let Some(min_eta) = self.compute_min_hill_ratio() {
+                if min_eta > self.config.close_encounter.exit_hill_ratio {
+                    self.close_encounter_active = false;
+                    self.close_checkpoint = None;
+                    println!("[sim] Close-encounter integrator exit (eta {:.3}).", min_eta);
+                }
+            }
+            return;
+        }
+
+        if let Some(candidate) = candidate {
+            self.close_encounter_active = true;
+            self.close_checkpoint = Some(self.snapshot());
+            self.close_checkpoint_energy = self.total_energy();
+
+            println!(
+                "[sim] Close-encounter integrator enter bodies {}-{}, eta {:.3}, acc {:.3}",
+                candidate.primary,
+                candidate.secondary,
+                candidate.eta,
+                candidate.acc_ratio
+            );
+        }
+    }
+
+    fn compute_close_encounter_candidate(&self) -> Option<CloseEncounterCandidate> {
+        let (positions, _velocities, masses, active) = self.collect_state();
+        let accelerations = compute_accelerations_direct_from_positions(
+            &positions,
+            &masses,
+            &active,
+            &self.config.integrator.force_config,
+        );
+
+        let mut best: Option<CloseEncounterCandidate> = None;
+        let softening_squared = self.config.integrator.force_config.softening
+            * self.config.integrator.force_config.softening;
+
+        for i in 0..positions.len() {
+            if !active[i] || masses[i] <= 0.0 {
+                continue;
+            }
+            for j in (i + 1)..positions.len() {
+                if !active[j] || masses[j] <= 0.0 {
+                    continue;
+                }
+
+                let dist = positions[i].distance(positions[j]);
+                if dist <= 0.0 {
+                    continue;
+                }
+
+                let (small_idx, large_idx) = if masses[i] <= masses[j] { (i, j) } else { (j, i) };
+                let hill = dist * (masses[small_idx] / (3.0 * masses[large_idx])).powf(1.0 / 3.0);
+                if hill <= 0.0 {
+                    continue;
+                }
+
+                let eta = dist / hill;
+                let pair_acc = gravitational_acceleration(
+                    positions[small_idx],
+                    positions[large_idx],
+                    masses[large_idx],
+                    softening_squared,
+                )
+                .length();
+                let total_acc = accelerations[small_idx].length().max(1e-12);
+                let acc_ratio = pair_acc / total_acc;
+
+                if eta < self.config.close_encounter.enter_hill_ratio
+                    && acc_ratio > self.config.close_encounter.enter_acc_ratio
+                {
+                    let candidate = CloseEncounterCandidate {
+                        primary: self.bodies[small_idx].id,
+                        secondary: self.bodies[large_idx].id,
+                        eta,
+                        acc_ratio,
+                    };
+                    if best.as_ref().map_or(true, |b| eta < b.eta) {
+                        best = Some(candidate);
+                    }
+                }
+            }
+        }
+
+        best
+    }
+
+    fn compute_min_hill_ratio(&self) -> Option<f64> {
+        let (positions, _velocities, masses, active) = self.collect_state();
+        let mut min_eta: Option<f64> = None;
+
+        for i in 0..positions.len() {
+            if !active[i] || masses[i] <= 0.0 {
+                continue;
+            }
+            for j in (i + 1)..positions.len() {
+                if !active[j] || masses[j] <= 0.0 {
+                    continue;
+                }
+
+                let dist = positions[i].distance(positions[j]);
+                if dist <= 0.0 {
+                    continue;
+                }
+
+                let (small_idx, large_idx) = if masses[i] <= masses[j] { (i, j) } else { (j, i) };
+                let hill = dist * (masses[small_idx] / (3.0 * masses[large_idx])).powf(1.0 / 3.0);
+                if hill <= 0.0 {
+                    continue;
+                }
+
+                let eta = dist / hill;
+                min_eta = Some(min_eta.map_or(eta, |v: f64| v.min(eta)));
+            }
+        }
+
+        min_eta
+    }
+
+    fn collect_state(&self) -> (Vec<Vec3>, Vec<Vec3>, Vec<f64>, Vec<bool>) {
+        let mut positions = Vec::with_capacity(self.bodies.len());
+        let mut velocities = Vec::with_capacity(self.bodies.len());
+        let mut masses = Vec::with_capacity(self.bodies.len());
+        let mut active = Vec::with_capacity(self.bodies.len());
+
+        for body in &self.bodies {
+            positions.push(body.position);
+            velocities.push(body.velocity);
+            masses.push(if body.is_massive { body.mass } else { 0.0 });
+            active.push(body.is_active);
+        }
+
+        (positions, velocities, masses, active)
     }
 
     /// Advance simulation by multiple ticks
@@ -250,6 +468,7 @@ impl Simulation {
             self.bodies.clone(),
             &self.config.integrator.force_config,
             &self.config.integrator,
+            &self.config.close_encounter,
         )
     }
 
@@ -262,8 +481,12 @@ impl Simulation {
         self.tick = snapshot.tick;
         self.bodies = snapshot.bodies;
         self.rng = Pcg32::from_state(snapshot.rng_state.0, snapshot.rng_state.1);
+        self.config.integrator = (&snapshot.integrator_config).into();
         self.config.integrator.force_config = (&snapshot.force_config).into();
+        self.config.close_encounter = (&snapshot.close_encounter_config).into();
         self.needs_init = true;
+        self.close_encounter_active = false;
+        self.close_checkpoint = None;
 
         // Update next_id to avoid collisions
         self.next_id = self.bodies.iter().map(|b| b.id).max().unwrap_or(0) + 1;
@@ -321,9 +544,17 @@ impl Simulation {
         &self.config
     }
 
+    /// Check if close-encounter mode is active
+    pub fn close_encounter_active(&self) -> bool {
+        self.close_encounter_active
+    }
+
     /// Set timestep
     pub fn set_dt(&mut self, dt: f64) {
         self.config.integrator.dt = dt;
+        if self.config.integrator.adaptive.max_dt < dt {
+            self.config.integrator.adaptive.max_dt = dt;
+        }
     }
 
     /// Set substeps
@@ -340,6 +571,16 @@ impl Simulation {
     pub fn set_force_method(&mut self, method: ForceMethod) {
         self.config.force_method = method;
         self.needs_init = true;
+    }
+
+    /// Set close-encounter integrator
+    pub fn set_close_encounter_integrator(&mut self, method: IntegratorType) {
+        self.config.close_encounter.close_integrator = method;
+    }
+
+    /// Enable or disable close-encounter switching
+    pub fn set_close_encounter_enabled(&mut self, enabled: bool) {
+        self.config.close_encounter.enabled = enabled;
     }
 
     /// Get a random number from the deterministic RNG
@@ -362,6 +603,8 @@ impl Simulation {
 mod tests {
     use super::*;
     use crate::constants::*;
+    use crate::body::BodyType;
+    use crate::vector::Vec3;
 
     fn create_earth_sun_system() -> Simulation {
         let mut sim = Simulation::new(42);
@@ -434,5 +677,43 @@ mod tests {
         
         assert!(moon_id.is_some());
         assert_eq!(sim.body_count(), 3);
+    }
+
+    #[test]
+    fn test_close_encounter_switching() {
+        let mut sim = Simulation::new(7);
+
+        let sun = Body::new(0, "Sun", BodyType::Star, 1.0e24, R_SUN, Vec3::ZERO, Vec3::ZERO);
+        let planet = Body::new(
+            1,
+            "Planet",
+            BodyType::Planet,
+            1.0e24,
+            R_EARTH,
+            Vec3::new(1.0e7, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        );
+
+        sim.add_body(sun);
+        let planet_id = sim.add_body(planet);
+
+        sim.config.close_encounter.enabled = true;
+        sim.config.close_encounter.enter_hill_ratio = 3.0;
+        sim.config.close_encounter.exit_hill_ratio = 1.0;
+        sim.config.close_encounter.enter_acc_ratio = 0.0;
+        sim.config.close_encounter.energy_error_threshold = 10.0;
+        sim.config.close_encounter.close_integrator = IntegratorType::GaussRadau;
+
+        sim.step();
+        assert!(sim.close_encounter_active(), "Expected close-encounter mode to activate");
+
+        if let Some(body) = sim.get_body_mut(planet_id) {
+            body.position = Vec3::new(1.0e12, 0.0, 0.0);
+            body.velocity = Vec3::ZERO;
+        }
+
+        sim.config.close_encounter.enabled = false;
+        sim.step();
+        assert!(!sim.close_encounter_active(), "Expected close-encounter mode to exit");
     }
 }

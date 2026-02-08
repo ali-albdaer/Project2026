@@ -28,6 +28,8 @@ type WasmSimulation = {
     setTheta(theta: number): void;
     useDirectForce(): void;
     useBarnesHut(): void;
+    setCloseEncounterIntegrator(method: string): void;
+    setCloseEncounterEnabled(enabled: boolean): void;
     random(): number;
     free(): void;
 };
@@ -177,6 +179,18 @@ export class PhysicsClient {
     useBarnesHut(): void {
         if (this.simulation) {
             this.simulation.useBarnesHut();
+        }
+    }
+
+    setCloseEncounterIntegrator(method: 'rk45' | 'gauss-radau'): void {
+        if (this.simulation) {
+            this.simulation.setCloseEncounterIntegrator(method);
+        }
+    }
+
+    setCloseEncounterEnabled(enabled: boolean): void {
+        if (this.simulation) {
+            this.simulation.setCloseEncounterEnabled(enabled);
         }
     }
 

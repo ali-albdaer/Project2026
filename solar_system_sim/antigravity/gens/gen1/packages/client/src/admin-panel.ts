@@ -126,6 +126,14 @@ export class AdminPanel {
                         <label>Barnes-Hut θ</label>
                         <input type="number" id="admin-theta" value="0.5" min="0.1" max="2" step="0.1">
                     </div>
+
+                    <div class="admin-field">
+                        <label>Close Encounter Integrator</label>
+                        <select id="admin-close-integrator">
+                            <option value="rk45">RK45 (Adaptive)</option>
+                            <option value="gauss-radau">Gauss-Radau</option>
+                        </select>
+                    </div>
                 </section>
 
                 <section class="admin-section">
@@ -458,6 +466,7 @@ export class AdminPanel {
         const forceMethod = (document.getElementById('admin-force-method') as HTMLSelectElement).value;
         const theta = parseFloat((document.getElementById('admin-theta') as HTMLInputElement).value);
         const simMode = (document.getElementById('admin-sim-mode') as HTMLSelectElement).value as 'tick' | 'accumulator';
+        const closeIntegrator = (document.getElementById('admin-close-integrator') as HTMLSelectElement).value as 'rk45' | 'gauss-radau';
         const timeScale = this.timeController.getCurrentSpeed().sim;
 
         if (this.network?.isConnected()) {
@@ -468,6 +477,7 @@ export class AdminPanel {
                 theta,
                 timeScale,
                 simMode,
+                closeEncounterIntegrator: closeIntegrator,
             } as AdminStatePayload);
         }
 
@@ -481,6 +491,7 @@ export class AdminPanel {
             this.physics.useDirectForce();
         }
         this.timeController.setPhysicsTimestep(dt);
+        this.physics.setCloseEncounterIntegrator(closeIntegrator);
         this.onSimModeChange?.(simMode);
 
         console.log(`⚙️ Applied settings: dt=${dt}s, substeps=${substeps}, method=${forceMethod}, θ=${theta}`);
@@ -505,6 +516,7 @@ export class AdminPanel {
         const thetaInput = document.getElementById('admin-theta') as HTMLInputElement | null;
         const thetaField = document.getElementById('theta-field') as HTMLElement | null;
         const simModeSelect = document.getElementById('admin-sim-mode') as HTMLSelectElement | null;
+        const closeIntegratorSelect = document.getElementById('admin-close-integrator') as HTMLSelectElement | null;
 
         if (dtInput) dtInput.value = settings.dt.toString();
         if (substepsInput) substepsInput.value = settings.substeps.toString();
@@ -512,6 +524,7 @@ export class AdminPanel {
         if (thetaInput) thetaInput.value = settings.theta.toString();
         if (thetaField) thetaField.classList.toggle('visible', settings.forceMethod === 'barnes-hut');
         if (simModeSelect) simModeSelect.value = settings.simMode;
+        if (closeIntegratorSelect) closeIntegratorSelect.value = settings.closeEncounterIntegrator;
     }
 
     private setupDrag(container: HTMLElement): void {

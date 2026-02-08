@@ -51,6 +51,10 @@ pub mod prelude {
     pub use crate::vector::Vec3;
 }
 
+fn parse_integrator(name: &str) -> integrator::IntegratorType {
+    integrator::IntegratorType::from_str(name)
+}
+
 // WASM Bindings
 
 /// Initialize panic hook for better error messages in WASM
@@ -218,6 +222,18 @@ impl WasmSimulation {
     #[wasm_bindgen(js_name = useBarnesHut)]
     pub fn use_barnes_hut(&mut self) {
         self.inner.set_force_method(simulation::ForceMethod::BarnesHut);
+    }
+
+    /// Set close-encounter integrator (rk45 | gauss-radau)
+    #[wasm_bindgen(js_name = setCloseEncounterIntegrator)]
+    pub fn set_close_encounter_integrator(&mut self, method: &str) {
+        self.inner.set_close_encounter_integrator(parse_integrator(method));
+    }
+
+    /// Enable/disable close-encounter switching
+    #[wasm_bindgen(js_name = setCloseEncounterEnabled)]
+    pub fn set_close_encounter_enabled(&mut self, enabled: bool) {
+        self.inner.set_close_encounter_enabled(enabled);
     }
 
     /// Get a random number from the deterministic PRNG

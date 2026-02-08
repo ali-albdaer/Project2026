@@ -5,12 +5,13 @@
 
 use crate::body::Body;
 use crate::force::ForceConfig;
-use crate::integrator::IntegratorConfig;
+use crate::integrator::{AdaptiveConfig, IntegratorConfig, IntegratorType};
+use crate::simulation::CloseEncounterConfig;
 use crate::prng::Pcg32;
 use serde::{Deserialize, Serialize};
 
 /// Current snapshot format version
-pub const SNAPSHOT_VERSION: u32 = 1;
+pub const SNAPSHOT_VERSION: u32 = 2;
 
 /// Simulation snapshot for serialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +39,9 @@ pub struct Snapshot {
     
     /// Integrator configuration  
     pub integrator_config: SerializableIntegratorConfig,
+
+    /// Close encounter configuration
+    pub close_encounter_config: SerializableCloseEncounterConfig,
     
     /// Optional metadata
     pub metadata: Option<SnapshotMetadata>,
@@ -74,6 +78,10 @@ pub struct SerializableIntegratorConfig {
     pub dt: f64,
     pub substeps: u32,
     pub method: String,
+    pub abs_tol: f64,
+    pub rel_tol: f64,
+    pub min_dt: f64,
+    pub max_dt: f64,
 }
 
 impl From<&IntegratorConfig> for SerializableIntegratorConfig {
@@ -82,6 +90,64 @@ impl From<&IntegratorConfig> for SerializableIntegratorConfig {
             dt: config.dt,
             substeps: config.substeps,
             method: format!("{:?}", config.method),
+            abs_tol: config.adaptive.abs_tol,
+            rel_tol: config.adaptive.rel_tol,
+            min_dt: config.adaptive.min_dt,
+            max_dt: config.adaptive.max_dt,
+        }
+    }
+}
+
+impl From<&SerializableIntegratorConfig> for IntegratorConfig {
+    fn from(config: &SerializableIntegratorConfig) -> Self {
+        Self {
+            dt: config.dt,
+            substeps: config.substeps,
+            method: IntegratorType::from_str(&config.method),
+            adaptive: AdaptiveConfig {
+                abs_tol: config.abs_tol,
+                rel_tol: config.rel_tol,
+                min_dt: config.min_dt,
+                max_dt: config.max_dt,
+            },
+            force_config: ForceConfig::default(),
+        }
+    }
+}
+
+/// Serializable close encounter configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerializableCloseEncounterConfig {
+    pub enabled: bool,
+    pub enter_hill_ratio: f64,
+    pub exit_hill_ratio: f64,
+    pub enter_acc_ratio: f64,
+    pub energy_error_threshold: f64,
+    pub close_integrator: String,
+}
+
+impl From<&CloseEncounterConfig> for SerializableCloseEncounterConfig {
+    fn from(config: &CloseEncounterConfig) -> Self {
+        Self {
+            enabled: config.enabled,
+            enter_hill_ratio: config.enter_hill_ratio,
+            exit_hill_ratio: config.exit_hill_ratio,
+            enter_acc_ratio: config.enter_acc_ratio,
+            energy_error_threshold: config.energy_error_threshold,
+            close_integrator: format!("{:?}", config.close_integrator),
+        }
+    }
+}
+
+impl From<&SerializableCloseEncounterConfig> for CloseEncounterConfig {
+    fn from(config: &SerializableCloseEncounterConfig) -> Self {
+        Self {
+            enabled: config.enabled,
+            enter_hill_ratio: config.enter_hill_ratio,
+            exit_hill_ratio: config.exit_hill_ratio,
+            enter_acc_ratio: config.enter_acc_ratio,
+            energy_error_threshold: config.energy_error_threshold,
+            close_integrator: IntegratorType::from_str(&config.close_integrator),
         }
     }
 }
@@ -115,6 +181,7 @@ impl Snapshot {
         bodies: Vec<Body>,
         force_config: &ForceConfig,
         integrator_config: &IntegratorConfig,
+        close_encounter_config: &CloseEncounterConfig,
     ) -> Self {
         Self {
             version: SNAPSHOT_VERSION,
@@ -125,6 +192,7 @@ impl Snapshot {
             bodies,
             force_config: force_config.into(),
             integrator_config: integrator_config.into(),
+            close_encounter_config: close_encounter_config.into(),
             metadata: None,
         }
     }
@@ -299,6 +367,7 @@ mod tests {
             bodies,
             &ForceConfig::default(),
             &IntegratorConfig::default(),
+            &CloseEncounterConfig::default(),
         )
     }
 
