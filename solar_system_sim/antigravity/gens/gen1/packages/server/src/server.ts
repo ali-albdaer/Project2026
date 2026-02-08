@@ -45,6 +45,8 @@ interface WasmSimulation {
     setTheta(theta: number): void;
     useDirectForce(): void;
     useBarnesHut(): void;
+    setCloseEncounterIntegrator(method: string): void;
+    setCloseEncounterEnabled(enabled: boolean): void;
     random(): number;
     free(): void;
 }
@@ -83,6 +85,7 @@ interface AdminStatePayload {
     timeScale: number;
     paused: boolean;
     simMode: 'tick' | 'accumulator';
+    closeEncounterIntegrator: 'rk45' | 'gauss-radau';
 }
 
 interface VisualizationStatePayload {
@@ -132,6 +135,7 @@ class SimulationServer {
         timeScale: 1, // Matches dt * tickRate (1s/s)
         paused: false,
         simMode: 'tick',
+        closeEncounterIntegrator: 'rk45',
     };
     private visualizationState: VisualizationStatePayload = {
         showOrbitTrails: true,
@@ -217,6 +221,7 @@ class SimulationServer {
             timeScale: 1.0 / CONFIG.tickRate * CONFIG.tickRate,
             paused: false,
             simMode: 'tick',
+            closeEncounterIntegrator: 'rk45',
         };
 
         console.log(`   Bodies: ${this.simulation.bodyCount()}`);
@@ -349,6 +354,9 @@ class SimulationServer {
                 const timeScale = typeof payload.timeScale === 'number' && payload.timeScale > 0
                     ? payload.timeScale
                     : this.adminState.timeScale;
+                const closeEncounterIntegrator = payload.closeEncounterIntegrator === 'gauss-radau'
+                    ? 'gauss-radau'
+                    : 'rk45';
 
                 this.simulation.setDt(dt);
                 this.simulation.setSubsteps(substeps);
@@ -359,6 +367,8 @@ class SimulationServer {
                     this.simulation.useDirectForce();
                 }
 
+                this.simulation.setCloseEncounterIntegrator(closeEncounterIntegrator);
+
                 this.adminState = {
                     dt,
                     substeps,
@@ -367,6 +377,7 @@ class SimulationServer {
                     timeScale,
                     paused: this.adminState.paused,
                     simMode,
+                    closeEncounterIntegrator,
                 };
 
                 this.simAccumulator = 0;

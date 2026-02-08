@@ -93,6 +93,43 @@ pub fn compute_accelerations_direct(bodies: &mut [Body], config: &ForceConfig) {
     }
 }
 
+/// Direct-sum acceleration for raw state buffers.
+///
+/// This avoids mutating bodies and is useful for adaptive integrators.
+pub fn compute_accelerations_direct_from_positions(
+    positions: &[Vec3],
+    masses: &[f64],
+    active: &[bool],
+    config: &ForceConfig,
+) -> Vec<Vec3> {
+    let softening_squared = config.softening * config.softening;
+    let n = positions.len();
+    let mut accelerations = vec![Vec3::ZERO; n];
+
+    for i in 0..n {
+        if !active[i] {
+            continue;
+        }
+
+        let mut acc = Vec3::ZERO;
+        for j in 0..n {
+            if i == j || !active[j] || masses[j] <= 0.0 {
+                continue;
+            }
+
+            acc += gravitational_acceleration(
+                positions[i],
+                positions[j],
+                masses[j],
+                softening_squared,
+            );
+        }
+        accelerations[i] = acc;
+    }
+
+    accelerations
+}
+
 /// Compute total gravitational potential energy of the system.
 /// U = -G * Σ(i<j) m_i * m_j / r_ij
 pub fn compute_potential_energy(bodies: &[Body], softening: f64) -> f64 {
