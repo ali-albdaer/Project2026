@@ -4,4 +4,4 @@ Multiplayer, high fidelity, n-body space simulator app built on WASM, TypeScript
 
 ## MOVE NOTICE:
 
-The project has moved to [Symplectica](https://github.com/ali-albdaer).
+The project has moved to [Symplectica](https://github.com/ali-albdaer/Symplectica).
