@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Navier-Stokes 2D Solver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="appShell">
+    <aside id="leftPanel" class="left-panel expanded">
+      <div class="panel-top">
+        <h1>Flow Solver</h1>
+        <button id="panelToggle" type="button" class="small-btn">Hide</button>
+      </div>
+
+      <section class="group" data-group="simulation">
+        <button class="group-title" type="button">Simulation Settings</button>
+        <div class="group-body">
+          <label>Resolution <span id="resolutionReadout">256</span></label>
+          <input id="resolution" type="range" min="64" max="1024" step="16" value="256" />
+
+          <label>Primary Solver</label>
+          <select id="primarySolver">
+            <option value="projection">Navier-Stokes Projection</option>
+            <option value="vorticityProjection">Vorticity-Enhanced Projection</option>
+            <option value="boundaryLayerRans">Boundary-Layer RANS</option>
+          </select>
+
+          <label>Pressure Solver</label>
+          <select id="pressureSolver">
+            <option value="sor">SOR (Red-Black)</option>
+            <option value="pcg">Preconditioned CG</option>
+          </select>
+
+          <label>Friction Model</label>
+          <select id="frictionModel">
+            <option value="blasius">Blasius Laminar</option>
+            <option value="ittc57">ITTC-1957 Turbulent</option>
+            <option value="schlichting">Schlichting Hybrid</option>
+          </select>
+
+          <label class="check"><input id="assumeIncompressible" type="checkbox" checked /> Strict incompressible projection</label>
+          <label class="check"><input id="assumeBoussinesq" type="checkbox" /> Boussinesq buoyancy</label>
+          <label class="check"><input id="assumeInviscidCore" type="checkbox" /> Inviscid core correction</label>
+          <label class="check"><input id="assumeNoSlip" type="checkbox" checked /> No-slip body walls</label>
+        </div>
+      </section>
+
+      <section class="group" data-group="flow">
+        <button class="group-title" type="button">Flow Settings</button>
+        <div class="group-body">
+          <label>u_x(x,y)</label>
+          <input id="uExprX" type="text" value="1.0" spellcheck="false" />
+
+          <label>u_y(x,y)</label>
+          <input id="uExprY" type="text" value="0.0" spellcheck="false" />
+
+          <label>Temperature T∞</label>
+          <input id="temperature" type="number" value="300" step="1" />
+
+          <label>Kinematic Viscosity ν</label>
+          <input id="viscosity" type="number" value="0.00002" step="0.000001" />
+
+          <label>Density ρ</label>
+          <input id="density" type="number" value="1.225" step="0.01" />
+
+          <label>Prandtl Pr</label>
+          <input id="prandtl" type="number" value="0.71" step="0.01" />
+
+          <label>Gravity g</label>
+          <input id="gravity" type="number" value="9.81" step="0.01" />
+        </div>
+      </section>
+
+      <section class="group" data-group="body">
+        <button class="group-title" type="button">Body Settings</button>
+        <div class="group-body">
+          <label>Body Type</label>
+          <select id="bodyType">
+            <option value="sphere">Sphere</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="airfoil">Airfoil</option>
+            <option value="rectangle">Rectangle</option>
+            <option value="flatPlate">Flat Plate</option>
+            <option value="diamond">Diamond</option>
+          </select>
+
+          <label>Size A</label>
+          <input id="bodySizeA" type="number" value="0.08" step="0.005" />
+
+          <label>Size B</label>
+          <input id="bodySizeB" type="number" value="0.04" step="0.005" />
+
+          <label>Angle (deg)</label>
+          <input id="bodyAngle" type="number" value="0" step="1" />
+
+          <label>Mass</label>
+          <input id="bodyMass" type="number" value="5" step="0.5" />
+
+          <label class="check"><input id="spawnArmed" type="checkbox" /> Arm canvas spawn</label>
+          <button id="spawnBody" type="button">Spawn Center</button>
+          <label class="check"><input id="dragBodies" type="checkbox" checked /> Enable body drag</label>
+
+          <label>Bodies</label>
+          <select id="bodyList" size="5"></select>
+          <button id="removeBody" type="button">Remove Selected</button>
+        </div>
+      </section>
+
+      <section class="group" data-group="visual">
+        <button class="group-title" type="button">Visual Settings</button>
+        <div class="group-body">
+          <label>Field</label>
+          <select id="displayField">
+            <option value="speed">Velocity Magnitude</option>
+            <option value="pressure">Pressure</option>
+            <option value="vorticity">Vorticity</option>
+            <option value="divergence">Divergence</option>
+            <option value="temperature">Temperature</option>
+          </select>
+
+          <label>Color Palette</label>
+          <select id="colorMap">
+            <option value="viridis">Viridis</option>
+            <option value="magma">Magma</option>
+            <option value="plasma">Plasma</option>
+            <option value="inferno">Inferno</option>
+            <option value="turbo">Turbo</option>
+            <option value="cividis">Cividis</option>
+          </select>
+
+          <label class="check"><input id="probeEnabled" type="checkbox" checked /> Probe Tool</label>
+          <label class="check"><input id="showDelta" type="checkbox" checked /> Boundary layer δ</label>
+          <label class="check"><input id="showDeltaStar" type="checkbox" checked /> Displacement δ*</label>
+          <label class="check"><input id="showTheta" type="checkbox" checked /> Momentum θ</label>
+          <label class="check"><input id="showVectors" type="checkbox" /> Velocity vectors</label>
+        </div>
+      </section>
+
+      <section class="group" data-group="monitor">
+        <button class="group-title" type="button">Property Monitor</button>
+        <div class="group-body">
+          <div id="metricGrid" class="metric-grid"></div>
+        </div>
+      </section>
+
+      <div class="key-strip">
+        <span>Space Pause</span>
+        <span>H Panel</span>
+        <span>P Probe</span>
+        <span>R Reset</span>
+        <span>B Layers</span>
+      </div>
+    </aside>
+
+    <main id="viewport" class="viewport">
+      <canvas id="simCanvas"></canvas>
+      <div id="fpsCounter" class="fps-counter">0 fps</div>
+      <div id="probeBox" class="probe-box hidden"></div>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

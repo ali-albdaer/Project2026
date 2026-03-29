@@ -1,0 +1,236 @@
+// ────────────────────────────────────────────
+// scenarios.js — Preset simulation scenarios
+// ────────────────────────────────────────────
+// Each scenario defines initial conditions, solver settings, and body setup.
+
+import { SOLVER_TYPE, COLLISION, TURB_MODEL, SHAPE, FIELD, COLORMAP } from './config.js';
+
+export const SCENARIOS = [
+    {
+        id: 'karman',
+        name: 'Karman Vortex Street',
+        description: 'Cylinder at Re~150, vortex shedding',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.08,
+            viscosity: 0.01,
+            density: 1.0,
+            field: FIELD.VORTICITY,
+            colormap: COLORMAP.COOLWARM,
+            stepsPerFrame: 6,
+            showBodies: true,
+            showBoundaryLayer: false,
+        },
+        bodies: [
+            { type: SHAPE.CIRCLE, x: 80, y: 100, params: { radius: 10 } },
+        ],
+    },
+    {
+        id: 'flat_plate_bl',
+        name: 'Flat Plate BL Development',
+        description: 'Boundary layer growth on flat plate',
+        config: {
+            nx: 400, ny: 150,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.06,
+            viscosity: 0.02,
+            density: 1.0,
+            field: FIELD.VELOCITY,
+            colormap: COLORMAP.VIRIDIS,
+            stepsPerFrame: 6,
+            showBodies: true,
+            showBoundaryLayer: true,
+            blDelta: true,
+            blDeltaStar: true,
+            blTheta: true,
+        },
+        bodies: [
+            { type: SHAPE.FLAT_PLATE, x: 120, y: 75, params: { length: 160, thickness: 2 }, angle: 0 },
+        ],
+    },
+    {
+        id: 'airfoil',
+        name: 'Airfoil Pressure Distribution',
+        description: 'NACA 2412 at 5 deg AoA',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.07,
+            viscosity: 0.015,
+            density: 1.0,
+            field: FIELD.PRESSURE,
+            colormap: COLORMAP.PLASMA,
+            stepsPerFrame: 6,
+            showBodies: true,
+            showBoundaryLayer: false,
+        },
+        bodies: [
+            { type: SHAPE.AIRFOIL, x: 120, y: 100, params: { naca: '2412', chord: 60, aoa: 5 } },
+        ],
+    },
+    {
+        id: 'backward_step',
+        name: 'Backward-Facing Step',
+        description: 'Recirculation behind a step',
+        config: {
+            nx: 400, ny: 150,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.06,
+            viscosity: 0.015,
+            density: 1.0,
+            field: FIELD.VELOCITY,
+            colormap: COLORMAP.VIRIDIS,
+            stepsPerFrame: 6,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.RECTANGLE, x: 80, y: 37, params: { width: 160, height: 75 }, angle: 0 },
+        ],
+    },
+    {
+        id: 'high_re_wake',
+        name: 'Turbulent Wake (High Re)',
+        description: 'Cylinder with Smagorinsky SGS model',
+        config: {
+            nx: 512, ny: 256,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.SMAGORINSKY,
+            smagorinskyCs: 0.12,
+            uInf: 0.1,
+            viscosity: 0.005,
+            density: 1.0,
+            field: FIELD.VORTICITY,
+            colormap: COLORMAP.COOLWARM,
+            stepsPerFrame: 4,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.CIRCLE, x: 100, y: 128, params: { radius: 15 } },
+        ],
+    },
+    {
+        id: 'cylinder_array',
+        name: 'Cylinder Array',
+        description: 'Wake interaction between cylinders',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.07,
+            viscosity: 0.01,
+            density: 1.0,
+            field: FIELD.VORTICITY,
+            colormap: COLORMAP.COOLWARM,
+            stepsPerFrame: 6,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.CIRCLE, x: 70, y: 80, params: { radius: 8 } },
+            { type: SHAPE.CIRCLE, x: 70, y: 120, params: { radius: 8 } },
+            { type: SHAPE.CIRCLE, x: 130, y: 100, params: { radius: 8 } },
+        ],
+    },
+    {
+        id: 'bluff_body',
+        name: 'Bluff Body Separation',
+        description: 'Flow separation around a rectangle',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.07,
+            viscosity: 0.01,
+            density: 1.0,
+            field: FIELD.VORTICITY,
+            colormap: COLORMAP.COOLWARM,
+            stepsPerFrame: 5,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.RECTANGLE, x: 100, y: 100, params: { width: 24, height: 24 } },
+        ],
+    },
+    {
+        id: 'ogive_low_drag',
+        name: 'Streamlined Ogive',
+        description: 'Low-drag ogive shape comparison',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.07,
+            viscosity: 0.012,
+            density: 1.0,
+            field: FIELD.VELOCITY,
+            colormap: COLORMAP.VIRIDIS,
+            stepsPerFrame: 6,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.OGIVE, x: 130, y: 100, params: { length: 50, radius: 80 } },
+        ],
+    },
+    {
+        id: 'symmetric_airfoil',
+        name: 'Symmetric Airfoil (0 AoA)',
+        description: 'NACA 0012 — symmetric flow validation',
+        config: {
+            nx: 400, ny: 200,
+            solverType: SOLVER_TYPE.LBM,
+            collision: COLLISION.BGK,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.07,
+            viscosity: 0.015,
+            density: 1.0,
+            field: FIELD.VELOCITY,
+            colormap: COLORMAP.VIRIDIS,
+            stepsPerFrame: 6,
+            showBodies: true,
+            showBoundaryLayer: true,
+            blDelta: true,
+        },
+        bodies: [
+            { type: SHAPE.AIRFOIL, x: 120, y: 100, params: { naca: '0012', chord: 60, aoa: 0 } },
+        ],
+    },
+    {
+        id: 'projection_demo',
+        name: 'Projection Solver Demo',
+        description: 'Traditional NS solver with cylinder',
+        config: {
+            nx: 256, ny: 128,
+            solverType: SOLVER_TYPE.PROJECTION,
+            turbModel: TURB_MODEL.NONE,
+            uInf: 0.06,
+            viscosity: 0.015,
+            density: 1.0,
+            field: FIELD.VELOCITY,
+            colormap: COLORMAP.MAGMA,
+            stepsPerFrame: 8,
+            showBodies: true,
+        },
+        bodies: [
+            { type: SHAPE.CIRCLE, x: 60, y: 64, params: { radius: 10 } },
+        ],
+    },
+];
+
+/**
+ * Get a scenario by id.
+ */
+export function getScenario(id) {
+    return SCENARIOS.find(s => s.id === id) || null;
+}
