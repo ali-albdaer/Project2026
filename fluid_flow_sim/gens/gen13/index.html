@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D Flow Lab - Real-Time Navier-Stokes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Sora:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <main class="app-shell">
+    <section class="panel controls">
+      <h1>2D Flow Lab</h1>
+      <p class="subtitle">Interactive incompressible Navier-Stokes sandbox with movable obstacles and scalar transport.</p>
+
+      <div class="section">
+        <h2>Simulation</h2>
+        <label>Grid Resolution <span id="resolutionValue"></span>
+          <input id="resolution" type="range" min="64" max="256" step="16" value="128" />
+        </label>
+        <label>Time Step <span id="dtValue"></span>
+          <input id="dt" type="range" min="0.003" max="0.04" step="0.001" value="0.016" />
+        </label>
+        <label>Substeps <span id="substepsValue"></span>
+          <input id="substeps" type="range" min="1" max="8" step="1" value="3" />
+        </label>
+        <label>Viscosity (nu) <span id="viscosityValue"></span>
+          <input id="viscosity" type="range" min="0.00001" max="0.01" step="0.00001" value="0.0008" />
+        </label>
+        <label>Scalar Diffusion (alpha) <span id="diffusionValue"></span>
+          <input id="diffusion" type="range" min="0.00001" max="0.01" step="0.00001" value="0.00035" />
+        </label>
+        <label>Inflow Speed U∞ <span id="inflowValue"></span>
+          <input id="inflow" type="range" min="0" max="4" step="0.05" value="1.35" />
+        </label>
+        <label>Buoyancy <span id="buoyancyValue"></span>
+          <input id="buoyancy" type="range" min="0" max="3" step="0.05" value="0.7" />
+        </label>
+        <label>Vorticity Confinement <span id="confinementValue"></span>
+          <input id="confinement" type="range" min="0" max="6" step="0.1" value="2.6" />
+        </label>
+        <div class="row">
+          <button id="pauseBtn">Pause</button>
+          <button id="resetBtn">Reset Flow</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Visualization</h2>
+        <label>Field Quantity
+          <select id="quantity">
+            <option value="none">None</option>
+            <option value="velocity" selected>Velocity Magnitude</option>
+            <option value="pressure">Pressure</option>
+            <option value="density">Density</option>
+            <option value="temperature">Temperature</option>
+            <option value="vorticity">Vorticity</option>
+          </select>
+        </label>
+        <label>Gradient Palette
+          <select id="palette">
+            <option value="viridis" selected>Viridis</option>
+            <option value="jet">Jet</option>
+            <option value="magma">Magma</option>
+            <option value="plasma">Plasma</option>
+            <option value="inferno">Inferno</option>
+            <option value="cividis">Cividis</option>
+            <option value="turbo">Turbo</option>
+          </select>
+        </label>
+        <label>Value Gain <span id="gainValue"></span>
+          <input id="gain" type="range" min="0.3" max="3" step="0.05" value="1" />
+        </label>
+        <div class="gradient-wrap">
+          <div id="gradientBar" class="gradient-bar"></div>
+          <div class="gradient-meta"><span id="valueMin">min</span><span id="valueMax">max</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Objects</h2>
+        <label>Mouse Tool
+          <select id="toolMode">
+            <option value="spawn" selected>Spawn</option>
+            <option value="drag">Drag / Move</option>
+            <option value="erase">Erase</option>
+          </select>
+        </label>
+        <label>Obstacle Type
+          <select id="objectType">
+            <option value="sphere" selected>Sphere (2D Circle)</option>
+            <option value="cylinder">Cylinder Section</option>
+            <option value="naca0012">NACA 0012</option>
+            <option value="naca2412">NACA 2412</option>
+            <option value="naca4415">NACA 4415</option>
+            <option value="nacaCustom">Custom NACA 4-Digit</option>
+          </select>
+        </label>
+        <label>Size/Chord % <span id="sizeValue"></span>
+          <input id="size" type="range" min="6" max="38" step="1" value="17" />
+        </label>
+        <label>Angle (deg) <span id="angleValue"></span>
+          <input id="angle" type="range" min="-90" max="90" step="1" value="0" />
+        </label>
+        <label>NACA Thickness t % <span id="thicknessValue"></span>
+          <input id="thickness" type="range" min="4" max="24" step="1" value="12" />
+        </label>
+        <label>NACA Camber m % <span id="camberValue"></span>
+          <input id="camber" type="range" min="0" max="9" step="0.5" value="2" />
+        </label>
+        <label>NACA Camber Pos p % <span id="camberPosValue"></span>
+          <input id="camberPos" type="range" min="10" max="90" step="1" value="40" />
+        </label>
+        <div class="row">
+          <button id="removeSelected">Remove Selected</button>
+          <button id="clearObjects">Clear Objects</button>
+        </div>
+        <p class="hint">Spawn mode: click canvas. Drag mode: drag existing object. Shift + mouse wheel rotates selected object.</p>
+      </div>
+
+      <div class="section">
+        <h2>Boundary Layer Model</h2>
+        <label>Solver
+          <select id="boundarySolver">
+            <option value="blasius" selected>Laminar Blasius Plate</option>
+            <option value="thwaites">Integral (Thwaites Approx.)</option>
+            <option value="powerlaw">Turbulent 1/7th Power Law</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="section metrics">
+        <h2>Non-Dimensional Monitor</h2>
+        <div class="metric-grid" id="metrics"></div>
+      </div>
+    </section>
+
+    <section class="panel viewport-panel">
+      <canvas id="simCanvas" aria-label="2D flow simulation canvas"></canvas>
+      <div class="overlay-info">
+        <span id="fpsReadout">FPS: --</span>
+        <span id="objectReadout">Objects: 0</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
