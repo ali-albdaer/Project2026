@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GPU-accelerated 2D incompressible Navier-Stokes fluid dynamics solver">
+    <title>NavierFlow - 2D Fluid Dynamics Solver</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="sim-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+
+    <div id="panel" class="panel">
+        <div class="panel-header">
+            <span class="panel-title">NavierFlow</span>
+            <button id="panel-toggle" class="panel-toggle-btn" title="Toggle Panel [Tab]">&#9664;</button>
+        </div>
+        <div class="panel-content" id="panel-content">
+            <div class="panel-section" id="section-sim">
+                <div class="section-header" data-section="sim">
+                    <span>Simulation</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="sim-content"></div>
+            </div>
+            <div class="panel-section" id="section-flow">
+                <div class="section-header" data-section="flow">
+                    <span>Flow</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="flow-content"></div>
+            </div>
+            <div class="panel-section" id="section-bodies">
+                <div class="section-header" data-section="bodies">
+                    <span>Bodies</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="bodies-content"></div>
+            </div>
+            <div class="panel-section" id="section-visual">
+                <div class="section-header" data-section="visual">
+                    <span>Visuals</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="visual-content"></div>
+            </div>
+            <div class="panel-section" id="section-analysis">
+                <div class="section-header" data-section="analysis">
+                    <span>Analysis</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="analysis-content"></div>
+            </div>
+            <div class="panel-section" id="section-scenarios">
+                <div class="section-header" data-section="scenarios">
+                    <span>Scenarios</span><span class="section-chevron">&#9662;</span>
+                </div>
+                <div class="section-body" id="scenarios-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fps-counter" class="fps-counter">0 FPS</div>
+    <div id="probe-tooltip" class="probe-tooltip"></div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
